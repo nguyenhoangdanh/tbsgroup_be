@@ -6,7 +6,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.use(cookieParser());
   app.enableCors({
-    origin: 'http://localhost:3000', // Chỉ định domain cụ thể
+    origin: ['http://localhost:3000', 'https://nestjs-daily-performance-be.vercel.app/api/v1'],
     credentials: true, // Cho phép gửi cookies hoặc token qua request
     allowedHeaders: ['Content-Type', 'Authorization'],
     exposedHeaders: ['Authorization'], // ⚠️ Phải thêm dòng này để client đọc được

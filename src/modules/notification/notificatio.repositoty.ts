@@ -53,8 +53,22 @@ export class NotificationRepository implements INotificationRepository {
       take: paging.limit,
     });
 
+    // return {
+    //   data: result.map((noti) => ({
+    //     ...noti,
+    //     actorId: noti.actorId ?? '',
+    //     content: noti.content ?? '',
+    //     action: noti.action as NotificationAction,
+    //     isSent: noti.isSent ?? false,
+    //     isRead: noti.isRead ?? false,
+    //   })),
+    //   paging,
+    //   total: count,
+    //   unreadCount: unreadCount,
+    // };
+
     return {
-      data: result.map((noti) => ({
+      data: result.map((noti: Notification) => ({
         ...noti,
         actorId: noti.actorId ?? '',
         content: noti.content ?? '',

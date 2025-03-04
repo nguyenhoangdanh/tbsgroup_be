@@ -1,6 +1,14 @@
 {
   "version": 2,
-  "builds": [{ "src": "src/main.ts", "use": "@vercel/node" }],
+  "builds": [
+    {
+      "src": "src/main.ts",
+      "use": "@vercel/node",
+      "env": {
+        "PRISMA_GENERATE_SKIP_AUTOMATIC": "true"
+      }
+    }
+  ],
   "functions": {
     "api/*.ts": {
       "runtime": "nodejs18.x"

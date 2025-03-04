@@ -8,7 +8,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import fs from 'fs';
+import * as fs from 'fs';
 import { diskStorage } from 'multer';
 import { config } from 'src/share/config';
 
@@ -19,46 +19,40 @@ export class UploadHttpController {
   @UseInterceptors(
     FileInterceptor('file', {
       fileFilter: (req, file, cb) => {
-        const isImage = file.mimetype.startsWith('image');
-
-        if (isImage) {
-          cb(null, true);
-        } else {
-          cb(new BadRequestException('Invalid file type'), false);
+        if (!file.mimetype.startsWith('image')) {
+          return cb(new BadRequestException('Invalid file type'), false);
         }
+        cb(null, true);
       },
-      limits: {
-        fileSize: 512 * 1024, // 512 KB
-      },
+      limits: { fileSize: 512 * 1024 }, // 512 KB
       storage: diskStorage({
         destination: (req, file, cb) => {
-          ensureDirectoryExistence('./uploads');
-          cb(null, './uploads');
+          const uploadPath = './uploads';
+          if (!fs.existsSync(uploadPath)) {
+            fs.mkdirSync(uploadPath, { recursive: true });
+          }
+          cb(null, uploadPath);
         },
-        filename: function (req, file, cb) {
-          const hrtime = process.hrtime();
-          const prefix = `${hrtime[0] * 1e6}`;
-          cb(null, `${prefix}_${file.originalname}`);
+        filename: (req, file, cb) => {
+          const timestamp = Date.now();
+          cb(null, `${timestamp}_${file.originalname}`);
         },
       }),
     }),
   )
   uploadFile(@UploadedFile() file: Express.Multer.File) {
-    const fileUploaded = {
-      filename: file.originalname,
-      url: `${config.upload.cdn}/${file.filename}`,
-      ext: file.originalname.split('.').pop() || '',
-      contentType: file.mimetype,
-      size: file.size,
-      file: file.buffer,
-    };
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
 
-    return { data: fileUploaded };
+    return {
+      data: {
+        filename: file.filename,
+        url: `${config.upload.cdn}/${file.filename}`,
+        ext: file.originalname.split('.').pop() || '',
+        contentType: file.mimetype,
+        size: file.size,
+      },
+    };
   }
 }
-
-const ensureDirectoryExistence = (dirPath: string): void => {
-  if (!fs.existsSync(dirPath)) {
-    fs.mkdirSync(dirPath, { recursive: true });
-  }
-};

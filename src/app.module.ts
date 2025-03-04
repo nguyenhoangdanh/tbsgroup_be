@@ -10,7 +10,7 @@ import { PostLikeModule } from './modules/post-like/post-like.module';
 import { PostSaveModule } from './modules/post-save/post-save.module';
 import { PostModule } from './modules/post/post.module';
 import { TopicModule } from './modules/topic/topic.module';
-import { UploadModule } from './modules/upload/upload.module';
+// import { UploadModule } from './modules/upload/upload.module';
 import { UserModule } from './modules/user/user.module';
 import { ShareModule } from './share/module';
 import { FormModule } from './modules/form/form.module';
@@ -24,7 +24,7 @@ import { FormSettingsModule } from './modules/formSettings/form-settings-module'
     }),
     ShareModule,
     UserModule,
-    UploadModule,
+    // UploadModule,
     TopicModule,
     PostModule,
     CommentModule,

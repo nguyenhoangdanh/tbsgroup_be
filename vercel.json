@@ -6,11 +6,6 @@
       "use": "@vercel/node"
     }
   ],
-  "functions": {
-    "api/*.ts": {
-      "runtime": "nodejs18.x"
-    }
-  },
   "env": {
     "PRISMA_CLI_BINARY_TARGETS": "debian-openssl-3.0.x"
   }

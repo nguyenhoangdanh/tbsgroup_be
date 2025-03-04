@@ -51,8 +51,10 @@ export class UserHttpController {
       httpOnly: true, // Ngăn chặn XSS
       // secure: process.env.NODE_ENV === 'production', // Chỉ gửi qua HTTPS nếu production
       // sameSite: 'strict', // Chống CSRF
-      secure: false, // ❌ Không dùng true trên localhost
-      sameSite: 'lax', // 🛠 "strict" có thể chặn request từ frontend
+      // secure: false, // ❌ Không dùng true trên localhost
+      // sameSite: 'lax', // 🛠 "strict" có thể chặn request từ frontend
+      secure: process.env.NODE_ENV === 'production', // Chỉ bật nếu chạy HTTPS
+      sameSite: 'none', // Cần 'none' nếu frontend và backend khác domain
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 ngày
     });
 

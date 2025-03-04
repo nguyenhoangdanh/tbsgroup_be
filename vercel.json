@@ -3,15 +3,15 @@
   "builds": [
     {
       "src": "src/main.ts",
-      "use": "@vercel/node",
-      "env": {
-        "PRISMA_GENERATE_SKIP_AUTOMATIC": "true"
-      }
+      "use": "@vercel/node"
     }
   ],
   "functions": {
     "api/*.ts": {
       "runtime": "nodejs18.x"
     }
+  },
+  "env": {
+    "PRISMA_CLI_BINARY_TARGETS": "debian-openssl-3.0.x"
   }
 }

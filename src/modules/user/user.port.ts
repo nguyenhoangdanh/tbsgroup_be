@@ -21,7 +21,7 @@ export interface IUserService {
   // introspect token rpc
   introspectToken(token: string): Promise<TokenPayload>;
   resetPassword(dto: UserResetPasswordDTO): Promise<void>;
-  verifyData(dto: UserResetPasswordDTO): Promise<string>;
+  verifyData(dto: UserResetPasswordDTO): Promise<User>;
 }
 
 export interface IUserRepository {

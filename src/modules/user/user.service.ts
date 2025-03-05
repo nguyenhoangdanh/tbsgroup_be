@@ -21,6 +21,7 @@ import {
   userUpdateDTOSchema,
 } from './user.dto';
 import {
+  ErrExistsPassword,
   ErrInvalidCardIdAndEmployeeId,
   ErrInvalidToken,
   ErrInvalidUsernameAndPassword,
@@ -177,7 +178,7 @@ export class UserService implements IUserService {
     await this.userRepo.delete(userId, false);
   }
 
-  async verifyData(dto: UserResetPasswordDTO): Promise<string> {
+  async verifyData(dto: UserResetPasswordDTO): Promise<User> {
     const data = userResetPasswordDTOSchema.parse(dto);
 
     const user = await this.userRepo.findByCardId({
@@ -189,19 +190,30 @@ export class UserService implements IUserService {
       throw AppError.from(ErrInvalidCardIdAndEmployeeId, 400);
     }
 
-    return user.id;
+    return user;
   }
 
   async resetPassword(dto: UserResetPasswordDTO): Promise<void> {
     const data = userResetPasswordDTOSchema.parse(dto);
-
+    if (!data.password) {
+      throw new Error('Mật khẩu không được để trống');
+    }
     if (data.cardId && data.employeeId) {
-      const userId = await this.verifyData(data);
+      const user = await this.verifyData(data);
+
+      // 2. Check password
+      const isMatch = await bcrypt.compare(
+        `${dto.password}.${user.salt}`,
+        user.password,
+      );
+      if (isMatch) {
+        throw AppError.from(ErrExistsPassword, 400);
+      }
 
       const salt = bcrypt.genSaltSync(8);
       const hashPassword = await bcrypt.hash(`${data.password}.${salt}`, 10);
 
-      await this.userRepo.update(userId, { password: hashPassword, salt });
+      await this.userRepo.update(user.id, { password: hashPassword, salt });
     } else {
       const user = await this.userRepo.findByCond({ username: data.username });
 
@@ -209,6 +221,14 @@ export class UserService implements IUserService {
         throw AppError.from(ErrInvalidUsernameAndPassword, 400);
       }
 
+     // 2. Check password
+     const isMatch = await bcrypt.compare(
+      `${dto.password}.${user.salt}`,
+      user.password,
+    );
+    if (isMatch) {
+      throw AppError.from(ErrExistsPassword, 400);
+    }
       const salt = bcrypt.genSaltSync(8);
       const hashPassword = await bcrypt.hash(`${data.password}.${salt}`, 10);
 

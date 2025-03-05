@@ -23,7 +23,10 @@ export class UserPrismaRepository implements IUserRepository {
   }
 
   async findByCardId(cond: UserResetPasswordDTO): Promise<User | null> {
-    const data = await prisma.user.findFirst({ where: cond });
+    const data = await prisma.user.findFirst({
+      where: cond,
+    });
+
     if (!data) return null;
 
     return this._toModel(data);

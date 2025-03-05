@@ -54,7 +54,7 @@ export class UserHttpController {
       // secure: false, // ❌ Không dùng true trên localhost
       // sameSite: 'lax', // 🛠 "strict" có thể chặn request từ frontend
       secure: process.env.NODE_ENV === 'production', // Chỉ bật nếu chạy HTTPS
-      sameSite: 'none', // Cần 'none' nếu frontend và backend khác domain
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // Cần 'none' nếu frontend và backend khác domain
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 ngày
     });
 
@@ -128,14 +128,15 @@ export class UserHttpController {
   @Post('/auth/logout')
   @HttpCode(HttpStatus.OK)
   async logout(@Res() res: ExpressResponse) {
-    res.clearCookie('accessToken', {
-      httpOnly: true,
-      // secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 0,
-    });
-    return { data: true };
+      res.clearCookie('accessToken', {
+          httpOnly: process.env.NODE_ENV === 'production',
+          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+          secure: process.env.NODE_ENV === 'production',
+          maxAge: 0,
+      });
+      res.status(200).json({ data: true }); // Gửi response JSON và kết thúc request
   }
+  
 
   @Post('auth/verify')
   @HttpCode(HttpStatus.OK)

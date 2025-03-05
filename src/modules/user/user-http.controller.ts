@@ -128,15 +128,14 @@ export class UserHttpController {
   @Post('/auth/logout')
   @HttpCode(HttpStatus.OK)
   async logout(@Res() res: ExpressResponse) {
-      res.clearCookie('accessToken', {
-          httpOnly: process.env.NODE_ENV === 'production',
-          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-          secure: process.env.NODE_ENV === 'production',
-          maxAge: 0,
-      });
-      res.status(200).json({ data: true }); // Gửi response JSON và kết thúc request
+    res.clearCookie('accessToken', {
+      httpOnly: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 0,
+    });
+    res.status(200).json({ data: true }); // Gửi response JSON và kết thúc request
   }
-  
 
   @Post('auth/verify')
   @HttpCode(HttpStatus.OK)
@@ -151,14 +150,14 @@ export class UserHttpController {
     @Request() req: ExpressRequest,
     @Body() dto: UserResetPasswordDTO,
   ) {
-    const token = req.cookies?.accessToken;
-    if (!token) {
-      throw AppError.from(ErrInvalidToken, 401);
-    }
-    const requester = await this.userService.introspectToken(token);
-    if (requester.sub) {
-      await this.userService.resetPassword(dto);
-    }
+    // const token = req.cookies?.accessToken;
+    // if (!token) {
+    //   throw AppError.from(ErrInvalidToken, 401);
+    // }
+    // const requester = await this.userService.introspectToken(token);
+    // if (requester.sub) {
+    await this.userService.resetPassword(dto);
+    // }
     return { data: true };
   }
 }

@@ -1,17 +1,36 @@
 import { z } from 'zod';
 import { userSchema } from './user.model';
+import { workInfoSchema } from '../workInfo/work-info.model';
 
-export const userRegistrationDTOSchema = userSchema
-  .pick({
-    username: true,
-    password: true,
-    fullName: true,
-    position: true,
-    department: true,
-    employeeId: true,
-    cardId: true,
-  })
-  .required();
+// export const userRegistrationDTOSchema = userSchema
+//   .pick({
+//     username: true,
+//     password: true,
+//     fullName: true,
+//     employeeId: true,
+//     cardId: true,
+//   })
+//   .required();
+
+export const userRegistrationDTOSchema = z.object({
+  user: userSchema
+    .pick({
+      username: true,
+      password: true,
+      fullName: true,
+      employeeId: true,
+      cardId: true,
+    })
+    .required(),
+  workInfo: workInfoSchema
+    .pick({
+      department: true,
+      position: true,
+      line: true,
+      factory: true,
+    })
+    .required(),
+});
 
 export const userLoginDTOSchema = userSchema
   .pick({
@@ -32,8 +51,6 @@ export const userUpdateDTOSchema = userSchema
     avatar: true,
     cover: true,
     fullName: true,
-    position: true,
-    department: true,
     password: true,
     employeeId: true,
     bio: true,
@@ -64,18 +81,14 @@ export const userCondDTOSchema = userSchema
   })
   .partial();
 
-export const userResetPasswordDTOSchema = userRegistrationDTOSchema
-  .omit({
-    fullName: true,
-    position: true,
-    department: true,
-  })
-  .partial({
+export const userResetPasswordDTOSchema = userSchema
+  .pick({
     password: true,
     username: true,
     cardId: true,
     employeeId: true,
-  });
+  })
+  .partial();
 
 export type UserResetPasswordDTO = z.infer<typeof userResetPasswordDTOSchema>;
 

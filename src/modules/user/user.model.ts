@@ -62,8 +62,8 @@ export const userSchema = z.object({
   avatar: z.string().nullable().optional(),
   cover: z.string().nullable().optional(),
   fullName: z.string().min(5),
-  position: z.string().nonempty(),
-  department: z.string().nonempty(),
+  // position: z.string().nonempty(),
+  // department: z.string().nonempty(),
   employeeId: z.string().nonempty(),
   cardId: z.string().nonempty(),
   username: z
@@ -72,9 +72,10 @@ export const userSchema = z.object({
     .max(25, ErrUsernameAtMost25Chars.message)
     .regex(/^[a-zA-Z0-9_]+$/, ErrUsernameInvalid.message),
   // password: z.string().min(6, ErrPasswordAtLeast6Chars.message),
-  password: z.string()
-  .min(6, ErrPasswordAtLeast6Chars.message)
-  .regex(/^\S*$/, { message: "Mật khẩu không được chứa khoảng trắng" }), // 🚀 Thêm điều kiện này
+  password: z
+    .string()
+    .min(6, ErrPasswordAtLeast6Chars.message)
+    .regex(/^\S*$/, { message: 'Mật khẩu không được chứa khoảng trắng' }), // 🚀 Thêm điều kiện này
   salt: z.string().min(8),
   bio: z.string().nullable().optional(),
   websiteUrl: z.string().nullable().optional(),
@@ -84,7 +85,7 @@ export const userSchema = z.object({
   status: z.nativeEnum(Status).optional(),
   createdAt: z.date(),
   updatedAt: z.date(),
-  requireResetPassword: z.boolean(),
+  workInfoId: z.string(),
 });
 
 // export interface User extends z.infer<typeof userSchema> {}

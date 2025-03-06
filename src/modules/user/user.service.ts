@@ -31,29 +31,55 @@ import {
   User,
 } from './user.model';
 import { IUserRepository, IUserService } from './user.port';
+import { WORK_INFO_REPOSITORY } from '../workInfo/work-info.di-token';
+import { IWorkInfoRepository } from '../workInfo/work-info.port';
+import { WorkInfo } from '../workInfo/work-info.model';
 
 @Injectable()
 export class UserService implements IUserService {
   constructor(
     @Inject(USER_REPOSITORY) private readonly userRepo: IUserRepository,
+    @Inject(WORK_INFO_REPOSITORY)
+    private readonly workInfoRepo: IWorkInfoRepository,
     @Inject(TOKEN_PROVIDER) private readonly tokenProvider: ITokenProvider,
   ) {}
 
   async register(dto: UserRegistrationDTO): Promise<string> {
     try {
       const data = userRegistrationDTOSchema.parse(dto);
-      const user = await this.userRepo.findByCond({ username: data.username });
+
+      const user = await this.userRepo.findByCond({
+        username: data.user.username,
+      });
       if (user) {
         throw AppError.from(ErrUsernameExisted, 400);
       }
 
       const salt = bcrypt.genSaltSync(8);
-      const hashPassword = await bcrypt.hash(`${data.password}.${salt}`, 10);
+      const hashPassword = await bcrypt.hash(
+        `${data.user.password}.${salt}`,
+        10,
+      );
 
       const newId = v7();
+
+      const newIdWorkInfo = v7();
+      const newWorkInfo: WorkInfo = {
+        id: newIdWorkInfo,
+        department: data.workInfo.department,
+        position: data.workInfo.position,
+        line: data.workInfo.line,
+        factory: data.workInfo.factory,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      await this.workInfoRepo.insert(newWorkInfo);
+
       const newUser: User = {
-        ...data,
+        ...data.user,
         password: hashPassword,
+        username: data.user.username,
         id: newId,
         status: Status.FIRST_LOGIN,
         salt: salt,
@@ -62,12 +88,10 @@ export class UserService implements IUserService {
         updatedAt: new Date(),
         followerCount: 0,
         postCount: 0,
-        requireResetPassword: true,
-        position: data.position,
-        department: data.department,
-        fullName: data.fullName,
-        employeeId: data.employeeId,
-        cardId: data.cardId,
+        fullName: data.user.fullName,
+        employeeId: data.user.employeeId,
+        cardId: data.user.cardId,
+        workInfoId: newIdWorkInfo,
       };
 
       await this.userRepo.insert(newUser);
@@ -221,14 +245,14 @@ export class UserService implements IUserService {
         throw AppError.from(ErrInvalidUsernameAndPassword, 400);
       }
 
-     // 2. Check password
-     const isMatch = await bcrypt.compare(
-      `${dto.password}.${user.salt}`,
-      user.password,
-    );
-    if (isMatch) {
-      throw AppError.from(ErrExistsPassword, 400);
-    }
+      // 2. Check password
+      const isMatch = await bcrypt.compare(
+        `${dto.password}.${user.salt}`,
+        user.password,
+      );
+      if (isMatch) {
+        throw AppError.from(ErrExistsPassword, 400);
+      }
       const salt = bcrypt.genSaltSync(8);
       const hashPassword = await bcrypt.hash(`${data.password}.${salt}`, 10);
 

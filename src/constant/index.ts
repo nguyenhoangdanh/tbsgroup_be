@@ -19,3 +19,15 @@ export const fontSizeClass = {
   '2x-large': 'text-2xl',
   '4x-large': 'text-4xl',
 };
+
+export class User {
+  static readonly REGISTER = 'register';
+}
+
+export class HTTP_CONTROLLER {
+  static readonly FACTORY = 'factory';
+  static readonly LINE = 'line';
+  static readonly TEAM = 'team';
+  static readonly GROUP = 'group';
+  static readonly POSITION = 'position';
+}

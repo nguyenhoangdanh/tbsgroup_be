@@ -9,14 +9,19 @@ import { IUserRepository } from './user.port';
 @Injectable()
 export class UserPrismaRepository implements IUserRepository {
   async get(id: string): Promise<User | null> {
-    const data = await prisma.user.findUnique({ where: { id } });
+    const data = await prisma.user.findUnique({
+      where: { id },
+      include: {
+        workInfo: true,
+      },
+    });
     if (!data) return null;
 
     return this._toModel(data);
   }
 
   async findByCond(cond: UserCondDTO): Promise<User | null> {
-    const data = await prisma.user.findFirst({ where: cond });
+    const data = await prisma.user.findFirst({ where: cond, include: { workInfo: true } });
     if (!data) return null;
 
     return this._toModel(data);
@@ -24,7 +29,10 @@ export class UserPrismaRepository implements IUserRepository {
 
   async findByCardId(cond: UserResetPasswordDTO): Promise<User | null> {
     const data = await prisma.user.findFirst({
-      where: cond,
+      where: {
+        cardId: cond.cardId,
+        employeeId: cond.employeeId,
+      }
     });
 
     if (!data) return null;

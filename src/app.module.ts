@@ -15,6 +15,10 @@ import { UserModule } from './modules/user/user.module';
 import { ShareModule } from './share/module';
 import { FormModule } from './modules/form/form.module';
 import { FormSettingsModule } from './modules/formSettings/form-settings-module';
+import { WorkInfoModule } from './modules/workInfo/work-info.module';
+import { FactoryModule } from './modules/factory/factory.module';
+import { LineModule } from './modules/line/line.module';
+import { TeamModule } from './modules/team/team.module';
 
 @Module({
   imports: [
@@ -34,6 +38,10 @@ import { FormSettingsModule } from './modules/formSettings/form-settings-module'
     NotificationModule,
     FormModule,
     FormSettingsModule,
+    WorkInfoModule,
+    FactoryModule,
+    LineModule,
+    TeamModule,
   ],
   controllers: [AppController],
   providers: [AppService],

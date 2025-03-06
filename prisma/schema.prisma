@@ -110,32 +110,31 @@ model Topic {
   @@map("topics")
 }
 
-model User {
-  id                   String      @id @map("id") @db.VarChar(36)
-  cover                String?     @map("cover") @db.VarChar(255)
-  avatar               String?     @map("avatar") @db.VarChar(255)
-  username             String      @map("username") @db.VarChar(100)
-  password             String      @map("password") @db.VarChar(100)
-  fullName             String      @map("full_name") @db.VarChar(100)
-  position             String      @map("position") @db.VarChar(100)
-  department           String      @map("department") @db.VarChar(100)
-  employeeId           String      @map("employee_id") @db.VarChar(100)
-  cardId               String      @map("card_id") @db.VarChar(100)
-  salt                 String      @map("salt") @db.VarChar(50)
-  role                 UserRole    @default(user) @map("role")
-  bio                  String?     @map("bio") @db.VarChar(255)
-  websiteUrl           String?     @map("website_url") @db.VarChar(255)
-  followerCount        Int?        @default(0) @map("follower_count")
-  postCount            Int?        @default(0) @map("post_count")
-  status               UserStatus? @default(active) @map("status")
-  requireResetPassword Boolean?    @default(false) @map("require_reset_password")
-  createdAt            DateTime    @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt            DateTime    @default(now()) @map("updated_at") @db.Timestamp(0)
+// model User {
+//   id            String      @id @map("id") @db.VarChar(36)
+//   cover         String?     @map("cover") @db.VarChar(255)
+//   avatar        String?     @map("avatar") @db.VarChar(255)
+//   username      String      @map("username") @db.VarChar(100)
+//   password      String      @map("password") @db.VarChar(100)
+//   fullName      String      @map("full_name") @db.VarChar(100)
+//   position      String      @map("position") @db.VarChar(100)
+//   department    String      @map("department") @db.VarChar(100)
+//   employeeId    String      @map("employee_id") @db.VarChar(100)
+//   cardId        String      @map("card_id") @db.VarChar(100)
+//   salt          String      @map("salt") @db.VarChar(50)
+//   role          UserRole    @default(user) @map("role")
+//   bio           String?     @map("bio") @db.VarChar(255)
+//   websiteUrl    String?     @map("website_url") @db.VarChar(255)
+//   followerCount Int?        @default(0) @map("follower_count")
+//   postCount     Int?        @default(0) @map("post_count")
+//   status        UserStatus? @default(active) @map("status")
+//   createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamp(0)
+//   updatedAt     DateTime    @default(now()) @map("updated_at") @db.Timestamp(0)
 
-  @@index([role], map: "role")
-  @@index([status], map: "status")
-  @@map("users")
-}
+//   @@index([role], map: "role")
+//   @@index([status], map: "status")
+//   @@map("users")
+// }
 
 model Form {
   id            Int             @id @default(autoincrement())
@@ -178,28 +177,223 @@ model FormResponses {
   @@map("form_responses")
 }
 
-model Handbag {
-  id                         Int                       @id @default(autoincrement())
-  code                       String
-  name                       String
-  createdAt                  DateTime                  @default(now())
-  updatedAt                  DateTime                  @default(now()) @updatedAt
-  handbagProductionProcessId Int?
-  HandbagProductionProcess   HandbagProductionProcess? @relation(fields: [handbagProductionProcessId], references: [id])
+/////////////////////////////////////////////////////////////////////////////////////////////
+// database.prisma
 
-  @@map("handbag")
+enum UserRole {
+  user
+  admin
+  superadmin
+  factory_manager
+  line_manager
+  team_leader
+  group_leader
+  worker
 }
 
-model HandbagProductionProcess {
-  id        Int       @id @default(autoincrement())
-  code      String
-  name      String
-  target    Int
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @default(now()) @updatedAt
-  handbags  Handbag[]
+enum UserStatus {
+  first_login
+  active
+  pending
+  inactive
+  banned
+  deleted
+}
 
-  @@map("handbag_production_process")
+// Bảng quản lý người dùng
+model User {
+  id         String     @id @default(uuid()) @map("id") @db.Uuid
+  username   String     @unique @map("username") @db.VarChar(100)
+  password   String     @map("password") @db.VarChar(100)
+  fullName   String     @map("full_name") @db.VarChar(100)
+  avatar     String?    @map("avatar") @db.VarChar(255)
+  salt       String     @map("salt") @db.VarChar(50)
+  employeeId String     @unique @map("employee_id") @db.VarChar(100)
+  cardId     String     @unique @map("card_id") @db.VarChar(100)
+  status     UserStatus @default(first_login) @map("status")
+  role       UserRole   @default(worker) @map("role")
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt  DateTime   @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  // Quan hệ
+  workInfo   UserWorkInfo?
+  attendance Attendance[]
+  production ProductionRecord[]
+
+  @@index([role], map: "role")
+  @@index([status], map: "status")
+  @@map("users")
+}
+
+// Bảng thông tin làm việc
+model UserWorkInfo {
+  id         String   @id @default(uuid()) @map("id") @db.Uuid
+  userId     String   @unique @map("user_id") @db.Uuid
+  factoryId  String   @map("factory_id") @db.Uuid
+  lineId     String   @map("line_id") @db.Uuid
+  teamId     String?  @map("team_id") @db.Uuid
+  groupId    String?  @map("group_id") @db.Uuid
+  positionId String   @map("position_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  // Quan hệ
+  user     User     @relation(fields: [userId], references: [id])
+  factory  Factory  @relation(fields: [factoryId], references: [id])
+  line     Line     @relation(fields: [lineId], references: [id])
+  team     Team?    @relation(fields: [teamId], references: [id])
+  group    Group?   @relation(fields: [groupId], references: [id])
+  position Position @relation(fields: [positionId], references: [id])
+
+  @@map("user_work_infos")
+}
+
+// Bảng nhà máy
+model Factory {
+  id          String  @id @default(uuid()) @map("id") @db.Uuid
+  factoryCode String  @unique @map("factory_code") @db.VarChar(50)
+  name        String  @unique @map("name") @db.VarChar(100)
+  description String? @map("description") @db.VarChar(255)
+
+  workInfos UserWorkInfo[] // Add this relation field
+  lines     Line[]
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  @@map("factories")
+}
+
+// Bảng line
+model Line {
+  id          String  @id @default(uuid()) @map("id") @db.Uuid
+  lineCode    String  @unique @map("line_code") @db.VarChar(50)
+  name        String  @map("name") @db.VarChar(100)
+  description String? @map("description") @db.VarChar(255)
+  factoryId   String  @map("factory_id") @db.Uuid
+  teams       Team[] // Add this relation field
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  factory      Factory        @relation(fields: [factoryId], references: [id])
+  UserWorkInfo UserWorkInfo[]
+
+  @@map("lines")
+}
+
+model Team {
+  id          String   @id @default(uuid()) @map("id") @db.Uuid
+  name        String   @map("name") @db.VarChar(100)
+  teamCode    String   @unique @map("team_code") @db.VarChar(50)
+  description String?  @map("description") @db.VarChar(255)
+  lineId      String   @map("line_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+  line        Line     @relation(fields: [lineId], references: [id])
+
+  group        Group[]
+  position     Position[]
+  UserWorkInfo UserWorkInfo[]
+
+  @@map("teams")
+}
+
+model Position {
+  id           String   @id @default(uuid()) @map("id") @db.Uuid
+  positionCode String   @unique @map("position_code") @db.VarChar(50)
+  name         String   @map("name") @db.VarChar(100)
+  description  String?  @map("description") @db.VarChar(255)
+  teamId       String   @map("team_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+  team         Team     @relation(fields: [teamId], references: [id])
+
+  UserWorkInfo UserWorkInfo[]
+
+  @@map("positions")
+}
+
+// Bảng nhóm
+model Group {
+  id           String         @id @default(uuid()) @map("id") @db.Uuid
+  groupCode    String         @unique @map("group_code") @db.VarChar(50)
+  name         String         @map("name") @db.VarChar(100)
+  description  String?        @map("description") @db.VarChar(255)
+  teamId       String         @map("team_id") @db.Uuid
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt    DateTime       @updatedAt @map("updated_at") @db.Timestamp(0)
+  team         Team           @relation(fields: [teamId], references: [id])
+  UserWorkInfo UserWorkInfo[]
+
+  @@map("groups")
+}
+
+// Bảng mã túi xách và công đoạn
+model HandBag {
+  id               String             @id @default(uuid()) @map("id") @db.Uuid
+  bagCode          String             @map("bag_code") @db.VarChar(50)
+  bagName          String             @map("bag_name") @db.VarChar(150)
+  bagDescription   String?            @map("bag_description") @db.VarChar(255)
+  ProductionRecord ProductionRecord[]
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt        DateTime           @updatedAt @map("updated_at") @db.Timestamp(0)
+  BagProcess       BagProcess?        @relation(fields: [bagProcessId], references: [id])
+  bagProcessId     String?            @db.Uuid
+
+  @@map("hand_bags")
+}
+
+// Bảng công đoạn
+model BagProcess {
+  id          String   @id @default(uuid()) @map("id") @db.Uuid
+  processName String   @map("process_name") @db.VarChar(100)
+  processCode String   @map("process_code") @db.VarChar(50)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  ProductionRecord ProductionRecord[]
+  HandBag          HandBag[]
+
+  @@map("bag_processes")
+}
+
+// Bảng chấm công
+model Attendance {
+  id        String           @id @default(uuid()) @map("id") @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
+  date      DateTime         @map("date") @db.Date
+  status    AttendanceStatus @map("status")
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime         @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("attendances")
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+}
+
+// Bảng ghi nhận sản lượng
+model ProductionRecord {
+  id           String   @id @default(uuid()) @map("id") @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  bagProcessId String   @map("bag_process_id") @db.Uuid
+  date         DateTime @map("date") @db.Date
+  hourlyData   Json     @map("hourly_data") // Lưu dữ liệu sản lượng theo giờ
+  reason       String?  @map("reason") @db.VarChar(255)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  user       User       @relation(fields: [userId], references: [id])
+  bagProcess BagProcess @relation(fields: [bagProcessId], references: [id])
+  HandBag    HandBag?   @relation(fields: [handBagId], references: [id])
+  handBagId  String?    @db.Uuid
+
+  @@map("production_records")
 }
 
 enum NotificationAction {
@@ -219,18 +413,4 @@ enum CommentStatus {
 enum PostType {
   text
   media
-}
-
-enum UserRole {
-  user
-  admin
-}
-
-enum UserStatus {
-  first_login
-  active
-  pending
-  inactive
-  banned
-  deleted
 }

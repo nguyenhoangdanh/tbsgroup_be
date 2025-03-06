@@ -6,7 +6,10 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.use(cookieParser());
   app.enableCors({
-    origin: ['http://localhost:3000', 'https://nmtxts-daily-performance.vercel.app'],
+    origin: [
+      'http://localhost:3000',
+      'https://nmtxts-daily-performance.vercel.app',
+    ],
     credentials: true, // Cho phép gửi cookies hoặc token qua request
     allowedHeaders: ['Content-Type', 'Authorization'],
     exposedHeaders: ['Authorization'], // ⚠️ Phải thêm dòng này để client đọc được

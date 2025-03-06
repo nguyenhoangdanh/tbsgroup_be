@@ -9,9 +9,12 @@ import {
 import { UserPrismaRepository } from './user-prisma.repo';
 import { TOKEN_PROVIDER, USER_REPOSITORY, USER_SERVICE } from './user.di-token';
 import { UserService } from './user.service';
+import { WORK_INFO_REPOSITORY } from '../workInfo/work-info.di-token';
+import { WorkInfoPrismaRepository } from '../workInfo/work-info-prisma.repo';
 
 const repositories: Provider[] = [
   { provide: USER_REPOSITORY, useClass: UserPrismaRepository },
+  { provide: WORK_INFO_REPOSITORY, useClass: WorkInfoPrismaRepository },
 ];
 
 const services: Provider[] = [{ provide: USER_SERVICE, useClass: UserService }];

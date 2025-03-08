@@ -1,100 +1,178 @@
 import { z } from 'zod';
 import { userSchema } from './user.model';
-import { workInfoSchema } from '../workInfo/work-info.model';
+import { UserRole } from 'src/share';
 
-// export const userRegistrationDTOSchema = userSchema
-//   .pick({
-//     username: true,
-//     password: true,
-//     fullName: true,
-//     employeeId: true,
-//     cardId: true,
-//   })
-//   .required();
-
-export const userRegistrationDTOSchema = z.object({
-  user: userSchema
-    .pick({
-      username: true,
-      password: true,
-      fullName: true,
-      employeeId: true,
-      cardId: true,
-    })
-    .required(),
-  workInfo: workInfoSchema
-    .pick({
-      department: true,
-      position: true,
-      line: true,
-      factory: true,
-    })
-    .required(),
-});
-
-export const userLoginDTOSchema = userSchema
+// DTO cho đăng ký người dùng
+export const userRegistrationDTOSchema = userSchema
   .pick({
     username: true,
     password: true,
+    fullName: true,
+    employeeId: true,
+    cardId: true,
+    factoryId: true,
+    lineId: true,
+    teamId: true,
+    groupId: true,
+    positionId: true,
+    email: true,
+    phone: true,
   })
-  .required();
+  .partial({
+    factoryId: true,
+    lineId: true,
+    teamId: true,
+    groupId: true,
+    positionId: true,
+    email: true,
+    phone: true,
+  })
+  .required({
+    username: true,
+    password: true,
+    fullName: true,
+    employeeId: true,
+    cardId: true,
+  });
 
-// export interface UserRegistrationDTO
-//   extends z.infer<typeof userRegistrationDTOSchema> {}
+// DTO cho đăng nhập
+export const userLoginDTOSchema = z.object({
+  username: z.string().min(1, 'Tên đăng nhập không được để trống'),
+  password: z.string().min(1, 'Mật khẩu không được để trống'),
+  rememberMe: z.boolean().optional().default(false),
+});
+
 export type UserRegistrationDTO = z.infer<typeof userRegistrationDTOSchema>;
-
-// export interface UserLoginDTO extends z.infer<typeof userLoginDTOSchema> {}
 export type UserLoginDTO = z.infer<typeof userLoginDTOSchema>;
 
+// DTO cho cập nhật người dùng
 export const userUpdateDTOSchema = userSchema
   .pick({
     avatar: true,
-    cover: true,
     fullName: true,
-    password: true,
-    employeeId: true,
-    bio: true,
-    websiteUrl: true,
-    salt: true,
-    role: true,
+    email: true,
+    phone: true,
     status: true,
+    role: true,
+    factoryId: true,
+    lineId: true,
+    teamId: true,
+    groupId: true,
+    positionId: true,
   })
   .partial();
 
-// export interface UserUpdateDTO extends z.infer<typeof userUpdateDTOSchema> {}
 export type UserUpdateDTO = z.infer<typeof userUpdateDTOSchema>;
-// 200Lab TODO: Don't allow update role and status
-// but allow update role and status for admin only
-export const userUpdateProfileDTOSchema = userUpdateDTOSchema
-  .omit({
-    role: true,
-    status: true,
+
+// DTO cho cập nhật hồ sơ cá nhân - giới hạn các trường mà người dùng có thể tự cập nhật
+export const userUpdateProfileDTOSchema = userSchema
+  .pick({
+    avatar: true,
+    fullName: true,
+    email: true,
+    phone: true,
   })
   .partial();
 
+export type UserUpdateProfileDTO = z.infer<typeof userUpdateProfileDTOSchema>;
+
+// DTO cho đặt lại mật khẩu
+export const userResetPasswordDTOSchema = z
+  .object({
+    username: z.string().optional(),
+    cardId: z.string().optional(),
+    employeeId: z.string().optional(),
+    resetToken: z.string().optional(),
+    password: z.string().min(6, 'Mật khẩu mới phải có ít nhất 6 ký tự'),
+    confirmPassword: z
+      .string()
+      .min(6, 'Xác nhận mật khẩu phải có ít nhất 6 ký tự'),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: 'Mật khẩu xác nhận không khớp với mật khẩu mới',
+    path: ['confirmPassword'],
+  })
+  .refine(
+    (data) =>
+      (data.username && !data.cardId && !data.employeeId) ||
+      (!data.username && data.cardId && data.employeeId),
+    {
+      message: 'Vui lòng cung cấp username hoặc cả cardId và employeeId',
+      path: ['username'],
+    },
+  );
+
+export type UserResetPasswordDTO = z.infer<typeof userResetPasswordDTOSchema>;
+
+// DTO cho điều kiện tìm kiếm người dùng
 export const userCondDTOSchema = userSchema
   .pick({
     fullName: true,
     username: true,
     role: true,
     status: true,
+    factoryId: true,
+    lineId: true,
+    teamId: true,
+    groupId: true,
+    positionId: true,
   })
   .partial();
-
-export const userResetPasswordDTOSchema = userSchema
-  .pick({
-    password: true,
-    username: true,
-    cardId: true,
-    employeeId: true,
-  })
-  .partial();
-
-export type UserResetPasswordDTO = z.infer<typeof userResetPasswordDTOSchema>;
-
-// export interface UserCondDTO extends z.infer<typeof userCondDTOSchema> {}
-// export interface UserUpdateProfileDTO
-//   extends z.infer<typeof userUpdateProfileDTOSchema> {}
 
 export type UserCondDTO = z.infer<typeof userCondDTOSchema>;
-export type UserUpdateProfileDTO = z.infer<typeof userUpdateProfileDTOSchema>;
+
+// DTO cho yêu cầu đặt lại mật khẩu
+export const requestPasswordResetDTOSchema = z
+  .object({
+    username: z.string().optional(),
+    cardId: z.string().optional(),
+    employeeId: z.string().optional(),
+  })
+  .refine(
+    (data) =>
+      (data.username && !data.cardId && !data.employeeId) ||
+      (!data.username && data.cardId && data.employeeId),
+    {
+      message: 'Vui lòng cung cấp username hoặc cả cardId và employeeId',
+      path: ['username'],
+    },
+  );
+
+export type RequestPasswordResetDTO = z.infer<
+  typeof requestPasswordResetDTOSchema
+>;
+
+// DTO cho gán vai trò
+export const userRoleAssignmentDTOSchema = z.object({
+  role: z.nativeEnum(UserRole),
+  scope: z.string().optional(),
+  expiryDate: z.date().optional(), // Ngày hết hạn của vai trò (nếu là tạm thời)
+});
+
+export type UserRoleAssignmentDTO = z.infer<typeof userRoleAssignmentDTOSchema>;
+
+// DTO cho tạo mật khẩu mới
+export const changePasswordDTOSchema = z
+  .object({
+    oldPassword: z.string().min(1, 'Mật khẩu hiện tại không được để trống'),
+    newPassword: z.string().min(6, 'Mật khẩu mới phải có ít nhất 6 ký tự'),
+    confirmPassword: z
+      .string()
+      .min(6, 'Xác nhận mật khẩu phải có ít nhất 6 ký tự'),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: 'Mật khẩu xác nhận không khớp với mật khẩu mới',
+    path: ['confirmPassword'],
+  });
+
+export type ChangePasswordDTO = z.infer<typeof changePasswordDTOSchema>;
+
+// DTO cho phân trang và sắp xếp
+export const paginationDTOSchema = z.object({
+  page: z.number().int().positive().default(1),
+  limit: z.number().int().positive().max(100).default(10),
+  sortBy: z.string().optional().default('createdAt'),
+  sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
+});
+
+export type PaginationDTO = z.infer<typeof paginationDTOSchema>;

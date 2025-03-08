@@ -13,6 +13,7 @@ export class JwtTokenService implements ITokenProvider {
   }
 
   async generateToken(payload: TokenPayload): Promise<string> {
+    // Mở rộng payload để bao gồm thông tin về cấu trúc tổ chức
     return jwt.sign(payload, this.secretKey, { expiresIn: this.expiresIn });
   }
 

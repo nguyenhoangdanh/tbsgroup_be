@@ -1,177 +1,295 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import bcrypt from 'bcrypt';
 import {
   AppError,
-  ErrForbidden,
   ErrNotFound,
-  ITokenProvider,
   Requester,
   TokenPayload,
   UserRole,
 } from 'src/share';
 import { v7 } from 'uuid';
-import { TOKEN_PROVIDER, USER_REPOSITORY } from './user.di-token';
+import { TOKEN_SERVICE, USER_REPOSITORY } from './user.di-token';
 import {
+  ChangePasswordDTO,
+  PaginationDTO,
+  RequestPasswordResetDTO,
+  UserCondDTO,
   UserLoginDTO,
   UserRegistrationDTO,
-  userRegistrationDTOSchema,
   UserResetPasswordDTO,
-  userResetPasswordDTOSchema,
+  UserRoleAssignmentDTO,
   UserUpdateDTO,
-  userUpdateDTOSchema,
 } from './user.dto';
 import {
   ErrExistsPassword,
-  ErrInvalidCardIdAndEmployeeId,
+  ErrInvalidResetToken,
   ErrInvalidToken,
   ErrInvalidUsernameAndPassword,
+  ErrMissingResetCredentials,
+  ErrPermissionDenied,
+  ErrRoleAlreadyAssigned,
   ErrUserInactivated,
   ErrUsernameExisted,
-  Status,
   User,
+  UserStatus,
 } from './user.model';
-import { IUserRepository, IUserService } from './user.port';
-import { WORK_INFO_REPOSITORY } from '../workInfo/work-info.di-token';
-import { IWorkInfoRepository } from '../workInfo/work-info.port';
-import { WorkInfo } from '../workInfo/work-info.model';
+import { ITokenService, IUserRepository, IUserService } from './user.port';
 
 @Injectable()
 export class UserService implements IUserService {
+  private readonly logger = new Logger(UserService.name);
+
   constructor(
     @Inject(USER_REPOSITORY) private readonly userRepo: IUserRepository,
-    @Inject(WORK_INFO_REPOSITORY)
-    private readonly workInfoRepo: IWorkInfoRepository,
-    @Inject(TOKEN_PROVIDER) private readonly tokenProvider: ITokenProvider,
+    @Inject(TOKEN_SERVICE) private readonly tokenService: ITokenService,
   ) {}
 
+  // Authentication methods
   async register(dto: UserRegistrationDTO): Promise<string> {
     try {
-      const data = userRegistrationDTOSchema.parse(dto);
-
-      const user = await this.userRepo.findByCond({
-        username: data.user.username,
-      });
-      if (user) {
+      // Check if username already exists
+      const existingUser = await this.userRepo.findByUsername(dto.username);
+      if (existingUser) {
         throw AppError.from(ErrUsernameExisted, 400);
       }
 
-      const salt = bcrypt.genSaltSync(8);
-      const hashPassword = await bcrypt.hash(
-        `${data.user.password}.${salt}`,
-        10,
-      );
+      // Generate salt and hash password
+      const salt = bcrypt.genSaltSync(10);
+      const hashPassword = await bcrypt.hash(`${dto.password}.${salt}`, 12);
 
+      // Generate new user ID
       const newId = v7();
 
-      const newIdWorkInfo = v7();
-      const newWorkInfo: WorkInfo = {
-        id: newIdWorkInfo,
-        department: data.workInfo.department,
-        position: data.workInfo.position,
-        line: data.workInfo.line,
-        factory: data.workInfo.factory,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      await this.workInfoRepo.insert(newWorkInfo);
-
+      // Create new user object
       const newUser: User = {
-        ...data.user,
+        ...dto,
         password: hashPassword,
-        username: data.user.username,
+        username: dto.username,
         id: newId,
-        status: Status.FIRST_LOGIN,
+        status: UserStatus.PENDING_ACTIVATION,
         salt: salt,
-        role: UserRole.USER,
+        role: UserRole.WORKER, // Default role
         createdAt: new Date(),
         updatedAt: new Date(),
-        followerCount: 0,
-        postCount: 0,
-        fullName: data.user.fullName,
-        employeeId: data.user.employeeId,
-        cardId: data.user.cardId,
-        workInfoId: newIdWorkInfo,
+        fullName: dto.fullName,
+        employeeId: dto.employeeId,
+        cardId: dto.cardId,
+        factoryId: dto.factoryId || null,
+        lineId: dto.lineId || null,
+        teamId: dto.teamId || null,
+        groupId: dto.groupId || null,
+        positionId: dto.positionId || null,
       };
 
+      console.log('newUser, ', newUser);
+
+      // Insert new user to repository
       await this.userRepo.insert(newUser);
+
+      // Log successful user creation
+      this.logger.log(`New user registered: ${dto.username} (${newId})`);
+
       return newId;
     } catch (error) {
-      throw AppError.from(new Error(JSON.stringify(error)), 400);
+      // Log error details
+      this.logger.error(
+        `Error during user registration: ${error.message}`,
+        error.stack,
+      );
+
+      // Rethrow error for controller to handle
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw AppError.from(
+        new Error(`Lỗi khi đăng ký người dùng: ${error.message}`),
+        400,
+      );
     }
   }
 
-  async login(dto: UserLoginDTO): Promise<string> {
-    // const data = userLoginDTOSchema.parse(dto);
+  async login(
+    dto: UserLoginDTO,
+  ): Promise<{ token: string; expiresIn: number }> {
+    try {
+      // Find user by username
+      const user = await this.userRepo.findByUsername(dto.username);
+      if (!user) {
+        throw AppError.from(ErrInvalidUsernameAndPassword, 400);
+      }
 
-    // 1. Find user with username from DTO
-    const user = await this.userRepo.findByCond({ username: dto.username });
-    if (!user) {
-      throw AppError.from(ErrInvalidUsernameAndPassword, 400).withLog(
-        'Username not found',
+      // Check if user account is active
+      if (
+        user.status !== UserStatus.ACTIVE &&
+        user.status !== UserStatus.PENDING_ACTIVATION
+      ) {
+        throw AppError.from(ErrUserInactivated, 400);
+      }
+
+      // Verify password
+      const isMatch = await bcrypt.compare(
+        `${dto.password}.${user.salt}`,
+        user.password,
+      );
+      if (!isMatch) {
+        throw AppError.from(ErrInvalidUsernameAndPassword, 400);
+      }
+
+      // Determine token expiration based on "remember me" option
+      const expiresIn = dto.rememberMe ? '7d' : '1d'; // 7 days or 1 day
+
+      // Create token payload
+      const tokenPayload: TokenPayload = {
+        sub: user.id,
+        role: user.role,
+        factoryId: user.factoryId || undefined,
+        lineId: user.lineId || undefined,
+        teamId: user.teamId || undefined,
+        groupId: user.groupId || undefined,
+      };
+
+      // Generate JWT token
+      const token = await this.tokenService.generateToken(
+        tokenPayload,
+        expiresIn,
+      );
+
+      // Calculate token expiration time in seconds
+      const expirationTime = this.tokenService.getExpirationTime(token);
+
+      // Update user's last login timestamp
+      await this.userRepo.update(user.id, {
+        lastLogin: new Date(),
+        // If user is in PENDING_ACTIVATION, auto-activate on first login
+        status:
+          user.status === UserStatus.PENDING_ACTIVATION
+            ? UserStatus.ACTIVE
+            : user.status,
+      });
+
+      // Log successful login
+      this.logger.log(`User logged in: ${user.username} (${user.id})`);
+
+      return { token, expiresIn: expirationTime };
+    } catch (error) {
+      // Log error details
+      this.logger.error(`Login error: ${error.message}`, error.stack);
+
+      // Rethrow error for controller to handle
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw AppError.from(
+        new Error(`Lỗi khi đăng nhập: ${error.message}`),
+        400,
       );
     }
+  }
 
-    // 2. Check password
-    const isMatch = await bcrypt.compare(
-      `${dto.password}.${user.salt}`,
-      user.password,
-    );
-    if (!isMatch) {
-      throw AppError.from(ErrInvalidUsernameAndPassword, 400).withLog(
-        'Password is incorrect',
-      );
+  async logout(token: string): Promise<void> {
+    try {
+      // Get token expiration time
+      const expiresIn = this.tokenService.getExpirationTime(token);
+
+      if (expiresIn > 0) {
+        // Add token to blacklist
+        await this.tokenService.blacklistToken(token, expiresIn);
+
+        // Log successful logout
+        const payload = this.tokenService.decodeToken(token);
+        if (payload) {
+          this.logger.log(`User logged out: ${payload.sub}`);
+        }
+      }
+    } catch (error) {
+      this.logger.error(`Error during logout: ${error.message}`, error.stack);
+      // We don't throw an error here as logout should succeed even if blacklisting fails
     }
-
-    if (user.status === Status.DELETED || user.status === Status.INACTIVE) {
-      throw AppError.from(ErrUserInactivated, 400);
-    }
-
-    // 3. Return token
-    const role = user.role;
-    const token = await this.tokenProvider.generateToken({
-      sub: user.id,
-      role,
-    });
-    return token;
   }
 
   async introspectToken(token: string): Promise<TokenPayload> {
-    const payload = await this.tokenProvider.verifyToken(token);
-
+    // Verify token
+    const payload = await this.tokenService.verifyToken(token);
     if (!payload) {
-      throw AppError.from(ErrInvalidToken, 400);
+      throw AppError.from(ErrInvalidToken, 401);
     }
 
+    // Get user to validate current status
     const user = await this.userRepo.get(payload.sub);
     if (!user) {
-      throw AppError.from(ErrNotFound, 400);
+      throw AppError.from(ErrNotFound, 404);
     }
 
-    if (
-      user.status === Status.DELETED ||
-      user.status === Status.INACTIVE ||
-      user.status === Status.BANNED
-    ) {
-      throw AppError.from(ErrUserInactivated, 400);
+    // Check if user is active
+    if (user.status !== UserStatus.ACTIVE) {
+      throw AppError.from(ErrUserInactivated, 403);
     }
 
     return {
       sub: user.id,
       role: user.role,
+      factoryId: user.factoryId || undefined,
+      lineId: user.lineId || undefined,
+      teamId: user.teamId || undefined,
+      groupId: user.groupId || undefined,
     };
   }
 
-  async profile(userId: string): Promise<Omit<User, 'password' | 'salt'>> {
-    const user = await this.userRepo.get(userId);
-
-    if (!user) {
-      throw AppError.from(ErrNotFound, 400);
+  async refreshToken(
+    token: string,
+  ): Promise<{ token: string; expiresIn: number }> {
+    // Decode the existing token (without verifying it)
+    const payload = this.tokenService.decodeToken(token);
+    if (!payload) {
+      throw AppError.from(ErrInvalidToken, 401);
     }
 
-    // const { password, salt, ...rest } = user;
-    const { ...rest } = user;
-    return rest;
+    // Check if token is blacklisted
+    const isBlacklisted = await this.tokenService.isTokenBlacklisted(token);
+    if (isBlacklisted) {
+      throw AppError.from(ErrInvalidToken, 401);
+    }
+
+    // Get user to ensure they still exist and are active
+    const user = await this.userRepo.get(payload.sub);
+    if (!user || user.status !== UserStatus.ACTIVE) {
+      throw AppError.from(ErrUserInactivated, 403);
+    }
+
+    // Create a new token with the same payload but new expiration
+    const newToken = await this.tokenService.generateToken({
+      sub: user.id,
+      role: user.role,
+      factoryId: user.factoryId || undefined,
+      lineId: user.lineId || undefined,
+      teamId: user.teamId || undefined,
+      groupId: user.groupId || undefined,
+    });
+
+    // Calculate expiration time
+    const expiresIn = this.tokenService.getExpirationTime(newToken);
+
+    // Blacklist the old token
+    const oldTokenExpiresIn = this.tokenService.getExpirationTime(token);
+    if (oldTokenExpiresIn > 0) {
+      await this.tokenService.blacklistToken(token, oldTokenExpiresIn);
+    }
+
+    return { token: newToken, expiresIn };
+  }
+
+  // Profile management methods
+  async profile(userId: string): Promise<Omit<User, 'password' | 'salt'>> {
+    const user = await this.userRepo.get(userId);
+    if (!user) {
+      throw AppError.from(ErrNotFound, 404);
+    }
+
+    // Exclude sensitive information
+    const { password, salt, ...userInfo } = user;
+    return userInfo;
   }
 
   async update(
@@ -179,84 +297,447 @@ export class UserService implements IUserService {
     userId: string,
     dto: UserUpdateDTO,
   ): Promise<void> {
-    if (requester.role !== UserRole.ADMIN && requester.sub !== userId) {
-      throw AppError.from(ErrForbidden, 400);
-    }
-
-    const data = userUpdateDTOSchema.parse(dto);
-
+    // Check if user exists
     const user = await this.userRepo.get(userId);
     if (!user) {
-      throw AppError.from(ErrNotFound, 400);
+      throw AppError.from(ErrNotFound, 404);
     }
 
-    await this.userRepo.update(userId, data);
+    // Check permissions:
+    // 1. User can update their own profile (but with limited fields)
+    // 2. ADMIN and SUPER_ADMIN can update any user
+    // 3. Managers can update users in their hierarchy
+    const isSelfUpdate = requester.sub === userId;
+    const isAdmin =
+      requester.role === UserRole.ADMIN ||
+      requester.role === UserRole.SUPER_ADMIN;
+
+    if (!isSelfUpdate && !isAdmin) {
+      // Check hierarchical permissions for managers
+      const hasAccess = await this.canAccessEntity(
+        requester.sub,
+        'user',
+        userId,
+      );
+      if (!hasAccess) {
+        throw AppError.from(ErrPermissionDenied, 403);
+      }
+
+      // Non-admins cannot change status or role
+      if (dto.status !== undefined || dto.role !== undefined) {
+        throw AppError.from(ErrPermissionDenied, 403);
+      }
+    }
+
+    // If it's a self-update by a non-admin, restrict the fields that can be updated
+    if (isSelfUpdate && !isAdmin) {
+      const { avatar, fullName, email, phone } = dto;
+      await this.userRepo.update(userId, {
+        avatar,
+        fullName,
+        email,
+        phone,
+        updatedAt: new Date(),
+      });
+    } else {
+      // For admins or managers, update all allowed fields
+      await this.userRepo.update(userId, { ...dto, updatedAt: new Date() });
+    }
+
+    this.logger.log(`User updated: ${userId} by ${requester.sub}`);
   }
 
   async delete(requester: Requester, userId: string): Promise<void> {
-    if (requester.role !== UserRole.ADMIN && requester.sub !== userId) {
-      throw AppError.from(ErrForbidden, 400);
+    // Check if user exists
+    const user = await this.userRepo.get(userId);
+    if (!user) {
+      throw AppError.from(ErrNotFound, 404);
     }
 
-    // soft delete
+    // Check permissions (only self, ADMIN, or SUPER_ADMIN can delete)
+    const isSelf = requester.sub === userId;
+    const isAdmin =
+      requester.role === UserRole.ADMIN ||
+      requester.role === UserRole.SUPER_ADMIN;
+
+    if (!isSelf && !isAdmin) {
+      throw AppError.from(ErrPermissionDenied, 403);
+    }
+
+    // Soft delete the user (change status to DELETED)
     await this.userRepo.delete(userId, false);
+
+    this.logger.log(`User deleted: ${userId} by ${requester.sub}`);
   }
 
-  async verifyData(dto: UserResetPasswordDTO): Promise<User> {
-    const data = userResetPasswordDTOSchema.parse(dto);
-
-    const user = await this.userRepo.findByCardId({
-      employeeId: data.employeeId,
-      cardId: data.cardId,
-    });
-
+  // Password management methods
+  async changePassword(userId: string, dto: ChangePasswordDTO): Promise<void> {
+    // Get user
+    const user = await this.userRepo.get(userId);
     if (!user) {
-      throw AppError.from(ErrInvalidCardIdAndEmployeeId, 400);
+      throw AppError.from(ErrNotFound, 404);
     }
 
-    return user;
+    // Verify old password
+    const isMatch = await bcrypt.compare(
+      `${dto.oldPassword}.${user.salt}`,
+      user.password,
+    );
+    if (!isMatch) {
+      throw AppError.from(ErrInvalidUsernameAndPassword, 400);
+    }
+
+    // Check if new password is the same as old password
+    const isSamePassword = await bcrypt.compare(
+      `${dto.newPassword}.${user.salt}`,
+      user.password,
+    );
+    if (isSamePassword) {
+      throw AppError.from(ErrExistsPassword, 400);
+    }
+
+    // Generate new salt and hash for the new password
+    const salt = bcrypt.genSaltSync(10);
+    const hashPassword = await bcrypt.hash(`${dto.newPassword}.${salt}`, 12);
+
+    // Update user with new password
+    await this.userRepo.update(userId, {
+      password: hashPassword,
+      salt,
+      updatedAt: new Date(),
+    });
+
+    this.logger.log(`Password changed for user: ${userId}`);
+  }
+
+  async requestPasswordReset(
+    dto: RequestPasswordResetDTO,
+  ): Promise<{ resetToken: string; expiryDate: Date }> {
+    let user: User | null = null;
+
+    // Find user based on provided credentials
+    if (dto.username) {
+      user = await this.userRepo.findByUsername(dto.username);
+    } else if (dto.cardId && dto.employeeId) {
+      user = await this.userRepo.findByCardId(dto.cardId, dto.employeeId);
+    } else {
+      throw AppError.from(ErrMissingResetCredentials, 400);
+    }
+
+    if (!user) {
+      throw AppError.from(ErrNotFound, 404);
+    }
+
+    // Generate password reset token
+    const resetToken = await this.tokenService.generateResetToken();
+
+    // Set expiry to 1 hour from now
+    const expiryDate = new Date();
+    expiryDate.setHours(expiryDate.getHours() + 1);
+
+    // Save reset token to user
+    await this.userRepo.update(user.id, {
+      passwordResetToken: resetToken,
+      passwordResetExpiry: expiryDate,
+      updatedAt: new Date(),
+    });
+
+    this.logger.log(`Password reset requested for user: ${user.id}`);
+
+    return { resetToken, expiryDate };
   }
 
   async resetPassword(dto: UserResetPasswordDTO): Promise<void> {
-    const data = userResetPasswordDTOSchema.parse(dto);
-    if (!data.password) {
-      throw new Error('Mật khẩu không được để trống');
-    }
-    if (data.cardId && data.employeeId) {
-      const user = await this.verifyData(data);
+    let user: User | null = null;
 
-      // 2. Check password
-      const isMatch = await bcrypt.compare(
-        `${dto.password}.${user.salt}`,
-        user.password,
-      );
-      if (isMatch) {
-        throw AppError.from(ErrExistsPassword, 400);
+    // Find user based on provided credentials
+    if (dto.resetToken) {
+      // If reset token is provided, use it to find the user
+      user = await this.userRepo.findByResetToken(dto.resetToken);
+
+      // Verify token is valid and not expired
+      if (
+        !user ||
+        !user.passwordResetExpiry ||
+        user.passwordResetExpiry < new Date()
+      ) {
+        throw AppError.from(ErrInvalidResetToken, 400);
       }
-
-      const salt = bcrypt.genSaltSync(8);
-      const hashPassword = await bcrypt.hash(`${data.password}.${salt}`, 10);
-
-      await this.userRepo.update(user.id, { password: hashPassword, salt });
+    } else if (dto.username) {
+      // If username is provided, find by username
+      user = await this.userRepo.findByUsername(dto.username);
+    } else if (dto.cardId && dto.employeeId) {
+      // If cardId and employeeId are provided, find by those
+      user = await this.userRepo.findByCardId(dto.cardId, dto.employeeId);
     } else {
-      const user = await this.userRepo.findByCond({ username: data.username });
-
-      if (!user) {
-        throw AppError.from(ErrInvalidUsernameAndPassword, 400);
-      }
-
-      // 2. Check password
-      const isMatch = await bcrypt.compare(
-        `${dto.password}.${user.salt}`,
-        user.password,
-      );
-      if (isMatch) {
-        throw AppError.from(ErrExistsPassword, 400);
-      }
-      const salt = bcrypt.genSaltSync(8);
-      const hashPassword = await bcrypt.hash(`${data.password}.${salt}`, 10);
-
-      await this.userRepo.update(user.id, { password: hashPassword, salt });
+      throw AppError.from(ErrMissingResetCredentials, 400);
     }
+
+    if (!user) {
+      throw AppError.from(ErrNotFound, 404);
+    }
+
+    // Check if new password is the same as old password
+    const isSamePassword = await bcrypt.compare(
+      `${dto.password}.${user.salt}`,
+      user.password,
+    );
+    if (isSamePassword) {
+      throw AppError.from(ErrExistsPassword, 400);
+    }
+
+    // Generate new salt and hash for the new password
+    const salt = bcrypt.genSaltSync(10);
+    const hashPassword = await bcrypt.hash(`${dto.password}.${salt}`, 12);
+
+    // Update user with new password and clear reset token
+    await this.userRepo.update(user.id, {
+      password: hashPassword,
+      salt,
+      passwordResetToken: null,
+      passwordResetExpiry: null,
+      updatedAt: new Date(),
+    });
+
+    this.logger.log(`Password reset completed for user: ${user.id}`);
+  }
+
+  // Role management methods
+  async assignRole(
+    requester: Requester,
+    userId: string,
+    dto: UserRoleAssignmentDTO,
+  ): Promise<void> {
+    // Check if user exists
+    const user = await this.userRepo.get(userId);
+    if (!user) {
+      throw AppError.from(ErrNotFound, 404);
+    }
+
+    // Check if requester has permission to assign roles
+    if (
+      requester.role !== UserRole.ADMIN &&
+      requester.role !== UserRole.SUPER_ADMIN
+    ) {
+      throw AppError.from(ErrPermissionDenied, 403);
+    }
+
+    // Check if user already has this role with the same scope
+    const existingRoles = await this.userRepo.getUserRoles(userId);
+    const duplicateRole = existingRoles.find(
+      (r) => r.role === dto.role && r.scope === dto.scope,
+    );
+
+    if (duplicateRole) {
+      throw AppError.from(ErrRoleAlreadyAssigned, 400);
+    }
+
+    // Assign the role
+    await this.userRepo.assignRole(userId, dto.role, dto.scope, dto.expiryDate);
+
+    this.logger.log(
+      `Role ${dto.role} assigned to user ${userId} by ${requester.sub}`,
+    );
+  }
+
+  async removeRole(
+    requester: Requester,
+    userId: string,
+    role: UserRole,
+    scope?: string,
+  ): Promise<void> {
+    // Check if user exists
+    const user = await this.userRepo.get(userId);
+    if (!user) {
+      throw AppError.from(ErrNotFound, 404);
+    }
+
+    // Check if requester has permission to remove roles
+    if (
+      requester.role !== UserRole.ADMIN &&
+      requester.role !== UserRole.SUPER_ADMIN
+    ) {
+      throw AppError.from(ErrPermissionDenied, 403);
+    }
+
+    // Remove the role
+    await this.userRepo.removeRole(userId, role, scope);
+
+    this.logger.log(
+      `Role ${role} removed from user ${userId} by ${requester.sub}`,
+    );
+  }
+
+  async getUserRoles(
+    userId: string,
+  ): Promise<{ role: UserRole; scope?: string; expiryDate?: Date }[]> {
+    // Check if user exists
+    const user = await this.userRepo.get(userId);
+    if (!user) {
+      throw AppError.from(ErrNotFound, 404);
+    }
+
+    // Get all assigned roles
+    const roles = await this.userRepo.getUserRoles(userId);
+
+    // Include default role if not already included
+    const hasDefaultRole = roles.some((r) => r.role === user.role && !r.scope);
+    if (!hasDefaultRole) {
+      roles.push({ role: user.role });
+    }
+
+    return roles;
+  }
+
+  // Access control methods
+  async canAccessEntity(
+    userId: string,
+    entityType: string,
+    entityId: string,
+  ): Promise<boolean> {
+    // Get user
+    const user = await this.userRepo.get(userId);
+    if (!user) {
+      return false;
+    }
+
+    // ADMIN and SUPER_ADMIN have full access
+    if (user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN) {
+      return true;
+    }
+
+    // Check access based on entity type
+    switch (entityType.toLowerCase()) {
+      case 'factory':
+        return this.userRepo.isFactoryManager(userId, entityId);
+
+      case 'line':
+        return this.userRepo.isLineManager(userId, entityId);
+
+      case 'team':
+        return this.userRepo.isTeamLeader(userId, entityId);
+
+      case 'group':
+        return this.userRepo.isGroupLeader(userId, entityId);
+
+      case 'user':
+        // A user can access another user if they manage any organization unit that user belongs to
+        const targetUser = await this.userRepo.get(entityId);
+        if (!targetUser) return false;
+
+        // Self access
+        if (userId === entityId) return true;
+
+        // Check if user is a manager of target user's organizational units
+        if (
+          targetUser.factoryId &&
+          (await this.userRepo.isFactoryManager(userId, targetUser.factoryId))
+        ) {
+          return true;
+        }
+        if (
+          targetUser.lineId &&
+          (await this.userRepo.isLineManager(userId, targetUser.lineId))
+        ) {
+          return true;
+        }
+        if (
+          targetUser.teamId &&
+          (await this.userRepo.isTeamLeader(userId, targetUser.teamId))
+        ) {
+          return true;
+        }
+        if (
+          targetUser.groupId &&
+          (await this.userRepo.isGroupLeader(userId, targetUser.groupId))
+        ) {
+          return true;
+        }
+
+        return false;
+
+      default:
+        this.logger.warn(
+          `Unknown entity type: ${entityType} requested by user ${userId}`,
+        );
+        return false;
+    }
+  }
+
+  // User management methods
+  async listUsers(
+    requester: Requester,
+    conditions: UserCondDTO,
+    pagination: PaginationDTO,
+  ): Promise<{
+    data: Array<Omit<User, 'password' | 'salt'>>;
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    // Apply access control filters based on requester's role and permissions
+    const filteredConditions = { ...conditions };
+
+    // If not admin, restrict to organizational units the requester can access
+    if (
+      requester.role !== UserRole.ADMIN &&
+      requester.role !== UserRole.SUPER_ADMIN
+    ) {
+      const managerialAccess = await this.userRepo.getManagerialAccess(
+        requester.sub,
+      );
+
+      // Refine factory filter based on access
+      if (filteredConditions.factoryId) {
+        if (
+          !managerialAccess.factories.includes(filteredConditions.factoryId)
+        ) {
+          throw AppError.from(ErrPermissionDenied, 403);
+        }
+      } else if (managerialAccess.factories.length > 0) {
+        filteredConditions.factoryId = managerialAccess.factories[0]; // Default to first factory
+      }
+
+      // Apply similar logic for other organizational units
+      if (
+        filteredConditions.lineId &&
+        !managerialAccess.lines.includes(filteredConditions.lineId)
+      ) {
+        throw AppError.from(ErrPermissionDenied, 403);
+      }
+
+      if (
+        filteredConditions.teamId &&
+        !managerialAccess.teams.includes(filteredConditions.teamId)
+      ) {
+        throw AppError.from(ErrPermissionDenied, 403);
+      }
+
+      if (
+        filteredConditions.groupId &&
+        !managerialAccess.groups.includes(filteredConditions.groupId)
+      ) {
+        throw AppError.from(ErrPermissionDenied, 403);
+      }
+    }
+
+    // Get users with pagination
+    const { data, total } = await this.userRepo.list(
+      filteredConditions,
+      pagination,
+    );
+
+    // Remove sensitive information
+    const sanitizedData = data.map((user) => {
+      const { password, salt, ...userInfo } = user;
+      return userInfo;
+    });
+
+    return {
+      data: sanitizedData,
+      total,
+      page: pagination.page,
+      limit: pagination.limit,
+    };
   }
 }

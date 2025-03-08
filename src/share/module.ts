@@ -8,6 +8,7 @@ import {
   USER_RPC,
 } from './di-token';
 import { PostRPCClient, TokenIntrospectRPCClient, UserRPCClient } from './rpc';
+import { PrismaService } from './prisma.service';
 
 const tokenRPCClient = new TokenIntrospectRPCClient(config.rpc.introspectUrl);
 const tokenIntrospector: Provider = {
@@ -36,7 +37,7 @@ const redisClient: Provider = {
 };
 
 @Module({
-  providers: [tokenIntrospector, userRPC, postRPC, redisClient],
-  exports: [tokenIntrospector, userRPC, postRPC, redisClient],
+  providers: [tokenIntrospector, userRPC, postRPC, redisClient, PrismaService],
+  exports: [tokenIntrospector, userRPC, postRPC, redisClient, PrismaService],
 })
 export class ShareModule {}

@@ -1,33 +1,40 @@
 import { Module, Provider } from '@nestjs/common';
+import { JwtModule } from '@nestjs/jwt';
 import { config } from 'src/share';
-import { JwtTokenService } from 'src/share/components/jwt';
+import { TOKEN_INTROSPECTOR } from 'src/share/di-token';
 import { ShareModule } from 'src/share/module';
 import {
   UserHttpController,
   UserRpcHttpController,
 } from './user-http.controller';
 import { UserPrismaRepository } from './user-prisma.repo';
-import { TOKEN_PROVIDER, USER_REPOSITORY, USER_SERVICE } from './user.di-token';
+import { TOKEN_SERVICE, USER_REPOSITORY, USER_SERVICE } from './user.di-token';
 import { UserService } from './user.service';
-import { WORK_INFO_REPOSITORY } from '../workInfo/work-info.di-token';
-import { WorkInfoPrismaRepository } from '../workInfo/work-info-prisma.repo';
+import { TokenService } from 'src/share/components/token.service';
+import { RedisModule } from 'src/common/redis.module';
 
 const repositories: Provider[] = [
   { provide: USER_REPOSITORY, useClass: UserPrismaRepository },
-  { provide: WORK_INFO_REPOSITORY, useClass: WorkInfoPrismaRepository },
 ];
 
-const services: Provider[] = [{ provide: USER_SERVICE, useClass: UserService }];
-
-const tokenJWTProvider = new JwtTokenService(config.rpc.jwtSecret, '7d');
-const tokenProvider: Provider = {
-  provide: TOKEN_PROVIDER,
-  useValue: tokenJWTProvider,
-};
+const services: Provider[] = [
+  { provide: USER_SERVICE, useClass: UserService },
+  { provide: TOKEN_SERVICE, useClass: TokenService },
+  // Quan trọng: Cung cấp TOKEN_INTROSPECTOR sử dụng cùng instance với TOKEN_SERVICE
+  { provide: TOKEN_INTROSPECTOR, useExisting: TOKEN_SERVICE },
+];
 
 @Module({
-  imports: [ShareModule],
+  imports: [
+    ShareModule,
+    RedisModule,
+    JwtModule.register({
+      secret: config.rpc.jwtSecret,
+      signOptions: { expiresIn: '7d' },
+    }),
+  ],
   controllers: [UserHttpController, UserRpcHttpController],
-  providers: [...repositories, ...services, tokenProvider],
+  providers: [...repositories, ...services],
+  exports: [USER_SERVICE, USER_REPOSITORY, TOKEN_SERVICE, TOKEN_INTROSPECTOR],
 })
 export class UserModule {}

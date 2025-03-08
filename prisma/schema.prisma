@@ -1,3 +1,6 @@
+// Tối ưu database schema cho hệ thống quản lý chấm công và sản xuất
+// Đã tinh chỉnh mối quan hệ và cải thiện hiệu suất
+
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "debian-openssl-3.0.x"]
@@ -8,409 +11,928 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model CommentLike {
-  commentId String   @map("comment_id") @db.VarChar(36)
-  userId    String   @map("user_id") @db.VarChar(36)
-  createdAt DateTime @map("created_at")
-
-  @@id([commentId, userId])
-  @@map("comment_likes")
-}
-
-model Comment {
-  id         String        @id @map("id") @db.VarChar(36)
-  userId     String        @map("user_id") @db.VarChar(36)
-  postId     String        @map("post_id") @db.VarChar(36)
-  parentId   String?       @map("parent_id") @db.VarChar(36)
-  content    String        @map("content")
-  likedCount Int           @default(0) @map("liked_count")
-  replyCount Int           @default(0) @map("reply_count")
-  status     CommentStatus @default(pending) @map("status")
-  createdAt  DateTime      @default(now()) @map("created_at")
-  updatedAt  DateTime?     @default(now()) @map("updated_at")
-
-  @@index([parentId], map: "parentIdIdx")
-  @@index([postId], map: "postIdIdx")
-  @@index([status], map: "statusIdx")
-  @@index([userId], map: "userIdIdx")
-  @@map("comments")
-}
-
-model Follower {
-  followerId  String   @map("follower_id") @db.VarChar(36)
-  followingId String   @map("following_id") @db.VarChar(36)
-  createdAt   DateTime @map("created_at")
-
-  @@id([followingId, followerId])
-  @@index([followerId], map: "followerIdIdx")
-  @@map("followers")
-}
-
-model Notification {
-  id         String             @id @map("id") @db.VarChar(36)
-  receiverId String             @map("receiver_id") @db.VarChar(36)
-  actorId    String?            @map("actor_id") @db.VarChar(36)
-  content    String?            @map("content")
-  action     NotificationAction @default(liked) @map("action")
-  isSent     Boolean?           @map("is_sent")
-  isRead     Boolean?           @map("is_read")
-  createdAt  DateTime           @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt  DateTime           @default(now()) @map("updated_at") @db.Timestamp(0)
-
-  @@index([receiverId], map: "receiver_id")
-  @@map("notifications")
-}
-
-model PostLike {
-  postId    String   @map("post_id") @db.VarChar(36)
-  userId    String   @map("user_id") @db.VarChar(36)
-  createdAt DateTime @map("created_at")
-
-  @@id([postId, userId])
-  @@index([userId], map: "userId")
-  @@map("post_likes")
-}
-
-model PostSave {
-  postId    String   @map("post_id") @db.VarChar(36)
-  userId    String   @map("user_id") @db.VarChar(36)
-  createdAt DateTime @map("created_at")
-
-  @@id([postId, userId])
-  @@index([userId], map: "postSaveUserIdIdx")
-  @@map("post_saves")
-}
-
-model Post {
-  id           String    @id @map("id") @db.VarChar(36)
-  content      String    @map("content")
-  image        String?   @map("image") @db.VarChar(255)
-  authorId     String    @map("author_id") @db.VarChar(36)
-  topicId      String    @map("topic_id") @db.VarChar(36)
-  isFeatured   Boolean?  @default(false) @map("is_featured")
-  commentCount Int?      @default(0) @map("comment_count")
-  likedCount   Int?      @default(0) @map("liked_count")
-  type         PostType? @default(text) @map("type")
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt    DateTime  @default(now()) @map("updated_at") @db.Timestamp(0)
-
-  @@index([authorId], map: "authorIdIdx")
-  @@index([isFeatured], map: "isFeaturedIdx")
-  @@map("posts")
-}
-
-model Topic {
-  id        String   @id @map("id") @db.VarChar(36)
-  name      String   @map("name") @db.VarChar(100)
-  color     String   @map("color") @db.VarChar(10)
-  postCount Int?     @default(0) @map("post_count")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamp(0)
-
-  @@map("topics")
-}
-
-// model User {
-//   id            String      @id @map("id") @db.VarChar(36)
-//   cover         String?     @map("cover") @db.VarChar(255)
-//   avatar        String?     @map("avatar") @db.VarChar(255)
-//   username      String      @map("username") @db.VarChar(100)
-//   password      String      @map("password") @db.VarChar(100)
-//   fullName      String      @map("full_name") @db.VarChar(100)
-//   position      String      @map("position") @db.VarChar(100)
-//   department    String      @map("department") @db.VarChar(100)
-//   employeeId    String      @map("employee_id") @db.VarChar(100)
-//   cardId        String      @map("card_id") @db.VarChar(100)
-//   salt          String      @map("salt") @db.VarChar(50)
-//   role          UserRole    @default(user) @map("role")
-//   bio           String?     @map("bio") @db.VarChar(255)
-//   websiteUrl    String?     @map("website_url") @db.VarChar(255)
-//   followerCount Int?        @default(0) @map("follower_count")
-//   postCount     Int?        @default(0) @map("post_count")
-//   status        UserStatus? @default(active) @map("status")
-//   createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamp(0)
-//   updatedAt     DateTime    @default(now()) @map("updated_at") @db.Timestamp(0)
-
-//   @@index([role], map: "role")
-//   @@index([status], map: "status")
-//   @@map("users")
-// }
-
-model Form {
-  id            Int             @id @default(autoincrement())
-  formId        String          @unique @default(uuid())
-  userId        String
-  name          String
-  description   String          @default("")
-  jsonBlocks    String          @default("[]")
-  views         Int             @default(0)
-  responses     Int             @default(0)
-  published     Boolean         @default(false)
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @default(now()) @updatedAt
-  creatorName   String
-  settingsId    Int
-  settings      FormSettings    @relation(fields: [settingsId], references: [id])
-  formResponses FormResponses[]
-
-  @@map("form")
-}
-
-model FormSettings {
-  id              Int      @id @default(autoincrement())
-  primaryColor    String
-  backgroundColor String
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @default(now()) @updatedAt
-  forms           Form[]
-
-  @@map("form_settings")
-}
-
-model FormResponses {
-  id           Int      @id @default(autoincrement())
-  jsonResponse String
-  formId       Int
-  createdAt    DateTime @default(now())
-  form         Form     @relation(fields: [formId], references: [id])
-
-  @@map("form_responses")
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////
-// database.prisma
+// ==================== ENUMS ====================
 
 enum UserRole {
-  user
-  admin
-  superadmin
-  factory_manager
-  line_manager
-  team_leader
-  group_leader
-  worker
+  WORKER
+  GROUP_LEADER
+  TEAM_LEADER
+  LINE_MANAGER
+  FACTORY_MANAGER
+  ADMIN
+  SUPER_ADMIN
 }
 
 enum UserStatus {
-  first_login
-  active
-  pending
-  inactive
-  banned
-  deleted
+  PENDING_ACTIVATION
+  ACTIVE
+  INACTIVE
+  BANNED
+  DELETED
 }
 
-// Bảng quản lý người dùng
-model User {
-  id         String     @id @default(uuid()) @map("id") @db.Uuid
-  username   String     @unique @map("username") @db.VarChar(100)
-  password   String     @map("password") @db.VarChar(100)
-  fullName   String     @map("full_name") @db.VarChar(100)
-  avatar     String?    @map("avatar") @db.VarChar(255)
-  salt       String     @map("salt") @db.VarChar(50)
-  employeeId String     @unique @map("employee_id") @db.VarChar(100)
-  cardId     String     @unique @map("card_id") @db.VarChar(100)
-  status     UserStatus @default(first_login) @map("status")
-  role       UserRole   @default(worker) @map("role")
-  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt  DateTime   @updatedAt @map("updated_at") @db.Timestamp(0)
-
-  // Quan hệ
-  workInfo   UserWorkInfo?
-  attendance Attendance[]
-  production ProductionRecord[]
-
-  @@index([role], map: "role")
-  @@index([status], map: "status")
-  @@map("users")
-}
-
-// Bảng thông tin làm việc
-model UserWorkInfo {
-  id         String   @id @default(uuid()) @map("id") @db.Uuid
-  userId     String   @unique @map("user_id") @db.Uuid
-  factoryId  String   @map("factory_id") @db.Uuid
-  lineId     String   @map("line_id") @db.Uuid
-  teamId     String?  @map("team_id") @db.Uuid
-  groupId    String?  @map("group_id") @db.Uuid
-  positionId String   @map("position_id") @db.Uuid
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
-
-  // Quan hệ
-  user     User     @relation(fields: [userId], references: [id])
-  factory  Factory  @relation(fields: [factoryId], references: [id])
-  line     Line     @relation(fields: [lineId], references: [id])
-  team     Team?    @relation(fields: [teamId], references: [id])
-  group    Group?   @relation(fields: [groupId], references: [id])
-  position Position @relation(fields: [positionId], references: [id])
-
-  @@map("user_work_infos")
-}
-
-// Bảng nhà máy
-model Factory {
-  id          String  @id @default(uuid()) @map("id") @db.Uuid
-  factoryCode String  @unique @map("factory_code") @db.VarChar(50)
-  name        String  @unique @map("name") @db.VarChar(100)
-  description String? @map("description") @db.VarChar(255)
-
-  workInfos UserWorkInfo[] // Add this relation field
-  lines     Line[]
-
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
-
-  @@map("factories")
-}
-
-// Bảng line
-model Line {
-  id          String  @id @default(uuid()) @map("id") @db.Uuid
-  lineCode    String  @unique @map("line_code") @db.VarChar(50)
-  name        String  @map("name") @db.VarChar(100)
-  description String? @map("description") @db.VarChar(255)
-  factoryId   String  @map("factory_id") @db.Uuid
-  teams       Team[] // Add this relation field
-
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
-
-  factory      Factory        @relation(fields: [factoryId], references: [id])
-  UserWorkInfo UserWorkInfo[]
-
-  @@map("lines")
-}
-
-model Team {
-  id          String   @id @default(uuid()) @map("id") @db.Uuid
-  name        String   @map("name") @db.VarChar(100)
-  teamCode    String   @unique @map("team_code") @db.VarChar(50)
-  description String?  @map("description") @db.VarChar(255)
-  lineId      String   @map("line_id") @db.Uuid
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
-  line        Line     @relation(fields: [lineId], references: [id])
-
-  group        Group[]
-  position     Position[]
-  UserWorkInfo UserWorkInfo[]
-
-  @@map("teams")
-}
-
-model Position {
-  id           String   @id @default(uuid()) @map("id") @db.Uuid
-  positionCode String   @unique @map("position_code") @db.VarChar(50)
-  name         String   @map("name") @db.VarChar(100)
-  description  String?  @map("description") @db.VarChar(255)
-  teamId       String   @map("team_id") @db.Uuid
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
-  team         Team     @relation(fields: [teamId], references: [id])
-
-  UserWorkInfo UserWorkInfo[]
-
-  @@map("positions")
-}
-
-// Bảng nhóm
-model Group {
-  id           String         @id @default(uuid()) @map("id") @db.Uuid
-  groupCode    String         @unique @map("group_code") @db.VarChar(50)
-  name         String         @map("name") @db.VarChar(100)
-  description  String?        @map("description") @db.VarChar(255)
-  teamId       String         @map("team_id") @db.Uuid
-  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt    DateTime       @updatedAt @map("updated_at") @db.Timestamp(0)
-  team         Team           @relation(fields: [teamId], references: [id])
-  UserWorkInfo UserWorkInfo[]
-
-  @@map("groups")
-}
-
-// Bảng mã túi xách và công đoạn
-model HandBag {
-  id               String             @id @default(uuid()) @map("id") @db.Uuid
-  bagCode          String             @map("bag_code") @db.VarChar(50)
-  bagName          String             @map("bag_name") @db.VarChar(150)
-  bagDescription   String?            @map("bag_description") @db.VarChar(255)
-  ProductionRecord ProductionRecord[]
-  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt        DateTime           @updatedAt @map("updated_at") @db.Timestamp(0)
-  BagProcess       BagProcess?        @relation(fields: [bagProcessId], references: [id])
-  bagProcessId     String?            @db.Uuid
-
-  @@map("hand_bags")
-}
-
-// Bảng công đoạn
-model BagProcess {
-  id          String   @id @default(uuid()) @map("id") @db.Uuid
-  processName String   @map("process_name") @db.VarChar(100)
-  processCode String   @map("process_code") @db.VarChar(50)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
-
-  ProductionRecord ProductionRecord[]
-  HandBag          HandBag[]
-
-  @@map("bag_processes")
-}
-
-// Bảng chấm công
-model Attendance {
-  id        String           @id @default(uuid()) @map("id") @db.Uuid
-  userId    String           @map("user_id") @db.Uuid
-  date      DateTime         @map("date") @db.Date
-  status    AttendanceStatus @map("status")
-  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt DateTime         @updatedAt @map("updated_at") @db.Timestamp(0)
-
-  user User @relation(fields: [userId], references: [id])
-
-  @@map("attendances")
+enum ShiftType {
+  REGULAR // 7h30 - 16h30
+  EXTENDED // 16h30 - 18h
+  OVERTIME // 18h - 20h
 }
 
 enum AttendanceStatus {
   PRESENT
   ABSENT
+  LATE
+  EARLY_LEAVE
+  LEAVE_APPROVED
 }
 
-// Bảng ghi nhận sản lượng
-model ProductionRecord {
-  id           String   @id @default(uuid()) @map("id") @db.Uuid
+enum RecordStatus {
+  DRAFT // Bản nháp
+  PENDING // Chờ xác nhận
+  CONFIRMED // Đã duyệt
+  REJECTED // Bị từ chối
+}
+
+enum NotificationType {
+  SYSTEM
+  PRODUCTION
+  ATTENDANCE
+  LEAVE_REQUEST
+  APPROVAL
+}
+
+enum LeaveType {
+  ANNUAL
+  SICK
+  PERSONAL
+  MATERNITY
+  PATERNITY
+  OTHER
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum ProductionIssueType {
+  ABSENT // Vắng mặt (V)
+  LATE // Đi trễ (T)
+  WAITING_MATERIALS // Chờ nguyên liệu (CN)
+  QUALITY_ISSUES // Vấn đề chất lượng (CL)
+  LOST_MATERIALS // Mất mát nguyên liệu (MM)
+  OTHER // Lý do khác
+}
+
+// ==================== CORE MODELS ====================
+
+// Bảng quản lý người dùng
+model User {
+  id         String     @id @default(uuid()) @map("id") @db.Uuid
+  employeeId String     @unique @map("employee_id") @db.VarChar(50)
+  cardId     String     @unique @map("card_id") @db.VarChar(50)
+  username   String     @unique @map("username") @db.VarChar(50)
+  password   String     @map("password") @db.VarChar(100)
+  salt       String     @map("salt") @db.VarChar(50)
+  fullName   String     @map("full_name") @db.VarChar(100)
+  avatar     String?    @map("avatar") @db.VarChar(255)
+  email      String?    @unique @map("email") @db.VarChar(100)
+  phone      String?    @map("phone") @db.VarChar(20)
+  status     UserStatus @default(PENDING_ACTIVATION) @map("status")
+  role       UserRole   @default(WORKER) @map("role") // Role mặc định để tương thích
+
+  // Quan hệ trực tiếp với cấu trúc sản xuất
+  factoryId  String? @map("factory_id") @db.Uuid
+  lineId     String? @map("line_id") @db.Uuid
+  teamId     String? @map("team_id") @db.Uuid
+  groupId    String? @map("group_id") @db.Uuid
+  positionId String? @map("position_id") @db.Uuid
+
+  // Thông tin xác thực web
+  lastLogin           DateTime? @map("last_login") @db.Timestamp(0)
+  passwordResetToken  String?   @map("password_reset_token") @db.VarChar(100)
+  passwordResetExpiry DateTime? @map("password_reset_expiry") @db.Timestamp(0)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  // Quan hệ
+  factory  Factory?  @relation(fields: [factoryId], references: [id], onDelete: SetNull)
+  line     Line?     @relation(fields: [lineId], references: [id], onDelete: SetNull)
+  team     Team?     @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  group    Group?    @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  position Position? @relation(fields: [positionId], references: [id], onDelete: SetNull)
+
+  // Quan hệ với các bảng khác
+  userRoles             UserRoleAssignment[]
+  departments           UserDepartment[]
+  attendances           Attendance[]
+  productionRecords     ProductionRecord[]
+  leaveRequests         LeaveRequest[]
+  receivedNotifications Notification[]          @relation("ReceivedNotifications")
+  sentNotifications     Notification[]          @relation("SentNotifications")
+  approvals             ApprovalRequest[]       @relation("Approver")
+  submissions           ApprovalRequest[]       @relation("Submitter")
+  approvedRecords       ProductionRecord[]      @relation("ApprovedRecords")
+  approvedAttendances   Attendance[]            @relation("ApprovedAttendances")
+  approvedLeaves        LeaveRequest[]          @relation("ApprovedLeaves")
+  managedFactories      FactoryManager[]
+  managedLines          LineManager[]
+  ledTeams              TeamLeader[]
+  ledGroups             GroupLeader[]
+  createdDigitalForms   DigitalProductionForm[] @relation("FormCreator")
+  updatedDigitalForms   DigitalProductionForm[] @relation("FormUpdater")
+  formEntries           ProductionFormEntry[]   @relation("WorkerEntry")
+  dataExports           DataExport[]            @relation("ExportCreator")
+  digitalSignatures     DigitalSignature[]
+  revokedSignatures     DigitalSignature[]      @relation("SignatureRevoker")
+
+  @@index([status], map: "idx_user_status")
+  @@index([employeeId], map: "idx_user_employee_id")
+  @@index([factoryId, lineId, teamId, groupId], map: "idx_user_hierarchy")
+  @@index([positionId], map: "idx_user_position_id")
+  @@map("users")
+}
+
+// Bảng quan hệ giữa User và Role
+model UserRoleAssignment {
+  id        String   @id @default(uuid()) @map("id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  role      UserRole @map("role")
+  scope     String?  @map("scope") @db.VarChar(50) // Phạm vi áp dụng quyền: "factory:123", "line:456"
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role, scope], map: "unique_user_role_scope")
+  @@index([userId], map: "idx_user_role_assignment_user")
+  @@index([role], map: "idx_user_role_assignment_role")
+  @@map("user_role_assignments")
+}
+
+// Bảng quản lý nhà máy
+model FactoryManager {
+  factoryId String    @map("factory_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  isPrimary Boolean   @default(false) @map("is_primary") // Có phải quản lý chính không
+  startDate DateTime  @map("start_date") @db.Date
+  endDate   DateTime? @map("end_date") @db.Date
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  factory Factory @relation(fields: [factoryId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([factoryId, userId])
+  @@index([factoryId], map: "idx_factory_manager_factory")
+  @@index([userId], map: "idx_factory_manager_user")
+  @@map("factory_managers")
+}
+
+// Bảng quản lý dây chuyền
+model LineManager {
+  lineId    String    @map("line_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  isPrimary Boolean   @default(false) @map("is_primary")
+  startDate DateTime  @map("start_date") @db.Date
+  endDate   DateTime? @map("end_date") @db.Date
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  line Line @relation(fields: [lineId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([lineId, userId])
+  @@index([lineId], map: "idx_line_manager_line")
+  @@index([userId], map: "idx_line_manager_user")
+  @@map("line_managers")
+}
+
+// Bảng tổ trưởng
+model TeamLeader {
+  teamId    String    @map("team_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  isPrimary Boolean   @default(false) @map("is_primary")
+  startDate DateTime  @map("start_date") @db.Date
+  endDate   DateTime? @map("end_date") @db.Date
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([teamId, userId])
+  @@index([teamId], map: "idx_team_leader_team")
+  @@index([userId], map: "idx_team_leader_user")
+  @@map("team_leaders")
+}
+
+// Bảng nhóm trưởng
+model GroupLeader {
+  groupId   String    @map("group_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  isPrimary Boolean   @default(false) @map("is_primary")
+  startDate DateTime  @map("start_date") @db.Date
+  endDate   DateTime? @map("end_date") @db.Date
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, userId])
+  @@index([groupId], map: "idx_group_leader_group")
+  @@index([userId], map: "idx_group_leader_user")
+  @@map("group_leaders")
+}
+
+// Bảng vị trí công việc
+model Position {
+  id          String   @id @default(uuid()) @map("id") @db.Uuid
+  code        String   @unique @map("code") @db.VarChar(50)
+  name        String   @map("name") @db.VarChar(100)
+  description String?  @map("description") @db.VarChar(255)
+  skillLevel  Int?     @map("skill_level") // Cấp độ kỹ năng (1-5)
+  category    String?  @map("category") @db.VarChar(100) // Nhóm vị trí: Cutting, Sewing, QC, etc.
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  users     User[]
+  processes PositionProcess[] // Quan hệ với quy trình sản xuất
+
+  @@index([category], map: "idx_position_category")
+  @@index([skillLevel], map: "idx_position_skill_level")
+  @@map("positions")
+}
+
+// Bảng quy trình sản xuất
+model BagProcess {
+  id             String   @id @default(uuid()) @map("id") @db.Uuid
+  code           String   @unique @map("code") @db.VarChar(50)
+  name           String   @map("name") @db.VarChar(100)
+  description    String?  @map("description") @db.VarChar(255)
+  orderIndex     Int      @default(0) @map("order_index") // Thứ tự trong quy trình sản xuất
+  standardOutput Int      @default(0) @map("standard_output") // Sản lượng chuẩn/giờ
+  cycleDuration  Int?     @default(0) @map("cycle_duration") // Thời gian chu kỳ (giây)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  handBags          BagProcessHandBag[]
+  productionRecords ProductionRecord[]
+  positions         PositionProcess[] // Quan hệ với vị trí
+  formEntries       ProductionFormEntry[]
+
+  @@index([orderIndex], map: "idx_bag_process_order")
+  @@map("bag_processes")
+}
+
+// Bảng quan hệ giữa Position và BagProcess
+model PositionProcess {
+  positionId String   @map("position_id") @db.Uuid
+  processId  String   @map("process_id") @db.Uuid
+  isRequired Boolean  @default(true) @map("is_required")
+  efficiency Float?   @default(1.0) @map("efficiency") // Hệ số hiệu suất
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+
+  position Position   @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  process  BagProcess @relation(fields: [processId], references: [id], onDelete: Cascade)
+
+  @@id([positionId, processId])
+  @@map("position_processes")
+}
+
+// ==================== ORGANIZATIONAL STRUCTURE ====================
+
+// Bảng phòng ban
+model Department {
+  id          String   @id @default(uuid()) @map("id") @db.Uuid
+  code        String   @unique @map("code") @db.VarChar(50)
+  name        String   @map("name") @db.VarChar(100)
+  description String?  @map("description") @db.VarChar(255)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  users     UserDepartment[]
+  factories Factory[]
+
+  @@map("departments")
+}
+
+// Bảng quan hệ giữa User và Department
+model UserDepartment {
   userId       String   @map("user_id") @db.Uuid
-  bagProcessId String   @map("bag_process_id") @db.Uuid
-  date         DateTime @map("date") @db.Date
-  hourlyData   Json     @map("hourly_data") // Lưu dữ liệu sản lượng theo giờ
-  reason       String?  @map("reason") @db.VarChar(255)
+  departmentId String   @map("department_id") @db.Uuid
+  role         UserRole @map("role")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(0)
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
 
-  user       User       @relation(fields: [userId], references: [id])
-  bagProcess BagProcess @relation(fields: [bagProcessId], references: [id])
-  HandBag    HandBag?   @relation(fields: [handBagId], references: [id])
-  handBagId  String?    @db.Uuid
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
 
+  @@id([userId, departmentId])
+  @@map("user_departments")
+}
+
+// Bảng nhà máy
+model Factory {
+  id           String   @id @default(uuid()) @map("id") @db.Uuid
+  code         String   @unique @map("code") @db.VarChar(50)
+  name         String   @map("name") @db.VarChar(100)
+  description  String?  @map("description") @db.VarChar(255)
+  address      String?  @map("address") @db.VarChar(255)
+  departmentId String?  @map("department_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  department Department?      @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  managers   FactoryManager[]
+  lines      Line[]
+  users      User[]
+
+  @@index([departmentId], map: "idx_factory_department")
+  @@map("factories")
+}
+
+// Bảng line sản xuất
+model Line {
+  id          String   @id @default(uuid()) @map("id") @db.Uuid
+  code        String   @unique @map("code") @db.VarChar(50)
+  name        String   @map("name") @db.VarChar(100)
+  description String?  @map("description") @db.VarChar(255)
+  factoryId   String   @map("factory_id") @db.Uuid
+  capacity    Int?     @default(0) @map("capacity") // Số lượng công nhân tối đa
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  factory      Factory                 @relation(fields: [factoryId], references: [id], onDelete: Cascade)
+  managers     LineManager[]
+  teams        Team[]
+  users        User[]
+  digitalForms DigitalProductionForm[]
+  dataExports  DataExport[]
+
+  @@index([factoryId], map: "idx_line_factory_id")
+  @@map("lines")
+}
+
+// Bảng team (tổ)
+model Team {
+  id          String   @id @default(uuid()) @map("id") @db.Uuid
+  code        String   @unique @map("code") @db.VarChar(50)
+  name        String   @map("name") @db.VarChar(100)
+  description String?  @map("description") @db.VarChar(255)
+  lineId      String   @map("line_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  line    Line         @relation(fields: [lineId], references: [id], onDelete: Cascade)
+  leaders TeamLeader[]
+  groups  Group[]
+  users   User[]
+
+  @@index([lineId], map: "idx_team_line_id")
+  @@map("teams")
+}
+
+// Bảng group (nhóm)
+model Group {
+  id          String   @id @default(uuid()) @map("id") @db.Uuid
+  code        String   @unique @map("code") @db.VarChar(50)
+  name        String   @map("name") @db.VarChar(100)
+  description String?  @map("description") @db.VarChar(255)
+  teamId      String   @map("team_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  team    Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  leaders GroupLeader[]
+  users   User[]
+
+  @@index([teamId], map: "idx_group_team_id")
+  @@map("groups")
+}
+
+// ==================== PRODUCT MANAGEMENT ====================
+
+// Bảng mã túi xách
+model HandBag {
+  id          String   @id @default(uuid()) @map("id") @db.Uuid
+  code        String   @unique @map("code") @db.VarChar(50)
+  name        String   @map("name") @db.VarChar(150)
+  description String?  @map("description") @db.VarChar(255)
+  imageUrl    String?  @map("image_url") @db.VarChar(255)
+  active      Boolean  @default(true) @map("active") // Trạng thái hoạt động
+  category    String?  @map("category") @db.VarChar(100) // Phân loại sản phẩm
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  bagProcesses      BagProcessHandBag[]
+  productionRecords ProductionRecord[]
+  formEntries       ProductionFormEntry[]
+
+  @@index([active], map: "idx_hand_bag_active")
+  @@index([category], map: "idx_hand_bag_category")
+  @@map("hand_bags")
+}
+
+// Bảng quan hệ giữa BagProcess và HandBag
+model BagProcessHandBag {
+  bagProcessId   String   @map("bag_process_id") @db.Uuid
+  handBagId      String   @map("hand_bag_id") @db.Uuid
+  standardOutput Int?     @default(0) @map("standard_output") // Sản lượng chuẩn cho túi cụ thể
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+
+  bagProcess BagProcess @relation(fields: [bagProcessId], references: [id], onDelete: Cascade)
+  handBag    HandBag    @relation(fields: [handBagId], references: [id], onDelete: Cascade)
+
+  @@id([bagProcessId, handBagId])
+  @@map("bag_process_hand_bags")
+}
+
+// ==================== ATTENDANCE & PRODUCTION ====================
+
+// Bảng ca làm việc
+model Shift {
+  id        String    @id @default(uuid()) @map("id") @db.Uuid
+  type      ShiftType
+  startTime DateTime  @map("start_time")
+  endTime   DateTime  @map("end_time")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  @@index([type], map: "idx_shift_type")
+  @@map("shifts")
+}
+
+// Bảng chấm công
+model Attendance {
+  id           String           @id @default(uuid()) @map("id") @db.Uuid
+  userId       String           @map("user_id") @db.Uuid
+  date         DateTime         @map("date") @db.Date
+  shift        ShiftType        @map("shift")
+  status       AttendanceStatus @map("status")
+  checkInTime  DateTime?        @map("check_in_time") @db.Timestamp(0)
+  checkOutTime DateTime?        @map("check_out_time") @db.Timestamp(0)
+  reason       String?          @map("reason") @db.VarChar(255)
+  approvedBy   String?          @map("approved_by") @db.Uuid
+  createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt    DateTime         @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  user     User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  approver User? @relation("ApprovedAttendances", fields: [approvedBy], references: [id])
+
+  @@unique([userId, date, shift], map: "unique_attendance_record")
+  @@index([date], map: "idx_attendance_date")
+  @@index([status], map: "idx_attendance_status")
+  @@index([approvedBy], map: "idx_attendance_approved_by")
+  @@map("attendances")
+}
+
+// Bảng nghỉ phép
+model LeaveRequest {
+  id          String      @id @default(uuid()) @map("id") @db.Uuid
+  userId      String      @map("user_id") @db.Uuid
+  leaveType   LeaveType   @map("leave_type")
+  startDate   DateTime    @map("start_date") @db.Date
+  endDate     DateTime    @map("end_date") @db.Date
+  reason      String      @map("reason") @db.Text
+  status      LeaveStatus @default(PENDING) @map("status")
+  approvedBy  String?     @map("approved_by") @db.Uuid
+  approvedAt  DateTime?   @map("approved_at") @db.Timestamp(0)
+  attachments String?     @map("attachments") @db.Text // URLs đến tài liệu đính kèm, JSON array
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  approver     User?              @relation("ApprovedLeaves", fields: [approvedBy], references: [id])
+  transactions LeaveTransaction[]
+
+  @@index([userId], map: "idx_leave_user_id")
+  @@index([startDate, endDate], map: "idx_leave_date_range")
+  @@index([status], map: "idx_leave_status")
+  @@map("leave_requests")
+}
+
+// Bảng thông báo
+model Notification {
+  id         String           @id @default(uuid()) @map("id") @db.Uuid
+  userId     String           @map("user_id") @db.Uuid // Người nhận thông báo
+  senderId   String?          @map("sender_id") @db.Uuid // Người gửi thông báo
+  type       NotificationType @map("type")
+  title      String           @map("title") @db.VarChar(100)
+  message    String           @map("message") @db.Text
+  read       Boolean          @default(false) @map("read")
+  readAt     DateTime?        @map("read_at") @db.Timestamp(0)
+  entityId   String?          @map("entity_id") @db.Uuid // ID của đối tượng liên quan
+  entityType String?          @map("entity_type") @db.VarChar(50) // Loại đối tượng: ProductionRecord, LeaveRequest, etc.
+  createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamp(0)
+
+  user   User  @relation("ReceivedNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  sender User? @relation("SentNotifications", fields: [senderId], references: [id], onDelete: SetNull)
+
+  @@index([userId], map: "idx_notification_user_id")
+  @@index([read], map: "idx_notification_read")
+  @@index([type], map: "idx_notification_type")
+  @@map("notifications")
+}
+
+// Bảng phê duyệt (đổi tên để rõ nghĩa hơn)
+model ApprovalRequest {
+  id           String       @id @default(uuid()) @map("id") @db.Uuid
+  approverId   String       @map("approver_id") @db.Uuid // Người phê duyệt
+  submitterId  String       @map("submitter_id") @db.Uuid // Người nộp
+  entityId     String       @map("entity_id") @db.Uuid // ID của đối tượng cần phê duyệt
+  entityType   String       @map("entity_type") @db.VarChar(50) // Loại đối tượng: ProductionRecord, LeaveRequest
+  status       RecordStatus @default(PENDING) @map("status")
+  comment      String?      @map("comment") @db.Text
+  submittedAt  DateTime     @default(now()) @map("submitted_at") @db.Timestamp(0)
+  approvedAt   DateTime?    @map("approved_at") @db.Timestamp(0)
+  reminderSent Boolean      @default(false) @map("reminder_sent")
+
+  approver   User               @relation("Approver", fields: [approverId], references: [id], onDelete: Cascade)
+  submitter  User               @relation("Submitter", fields: [submitterId], references: [id], onDelete: Cascade)
+  signatures DigitalSignature[] @relation("ApprovalSignatures")
+
+  @@index([approverId], map: "idx_approval_approver_id")
+  @@index([submitterId], map: "idx_approval_submitter_id")
+  @@index([entityId, entityType], map: "idx_approval_entity")
+  @@index([status], map: "idx_approval_status")
+  @@map("approval_requests")
+}
+
+// Model vấn đề sản xuất
+model ProductionIssue {
+  id                 String              @id @default(uuid()) @map("id") @db.Uuid
+  productionRecordId String              @map("production_record_id") @db.Uuid
+  issueType          ProductionIssueType @map("issue_type")
+  description        String?             @map("description") @db.Text
+  affectedHour       Int?                @map("affected_hour") // Giờ bị ảnh hưởng
+  // Tiếp tục từ model ProductionIssue
+  impactPercentage   Int?                @map("impact_percentage") // Mức độ ảnh hưởng (%)
+  startTime          DateTime?           @map("start_time") @db.Timestamp(0)
+  endTime            DateTime?           @map("end_time") @db.Timestamp(0)
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt          DateTime            @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  productionRecord ProductionRecord @relation(fields: [productionRecordId], references: [id], onDelete: Cascade)
+
+  @@index([productionRecordId], map: "idx_production_issue_record")
+  @@index([issueType], map: "idx_production_issue_type")
+  @@map("production_issues")
+}
+
+// Model phiếu công đoạn (báo cáo)
+model ProductionProcessForm {
+  id          String       @id @default(uuid()) @map("id") @db.Uuid
+  formNumber  String       @unique @map("form_number") @db.VarChar(50)
+  date        DateTime     @map("date") @db.Date
+  shiftType   ShiftType    @map("shift_type")
+  printedBy   String       @map("printed_by") @db.Uuid
+  printedAt   DateTime     @default(now()) @map("printed_at") @db.Timestamp(0)
+  submittedBy String?      @map("submitted_by") @db.Uuid
+  submittedAt DateTime?    @map("submitted_at") @db.Timestamp(0)
+  verifiedBy  String?      @map("verified_by") @db.Uuid
+  verifiedAt  DateTime?    @map("verified_at") @db.Timestamp(0)
+  status      RecordStatus @default(PENDING) @map("status")
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  productionRecords ProductionRecord[] // Các bản ghi sản lượng liên quan đến phiếu này
+
+  @@index([date], map: "idx_production_form_date")
+  @@index([status], map: "idx_production_form_status")
+  @@map("production_process_forms")
+}
+
+// Bảng ProductionRecord (cho khả năng tương thích dữ liệu cũ)
+model ProductionRecord {
+  id           String       @id @default(uuid()) @map("id") @db.Uuid
+  userId       String       @map("user_id") @db.Uuid
+  bagProcessId String       @map("bag_process_id") @db.Uuid
+  handBagId    String       @map("hand_bag_id") @db.Uuid
+  date         DateTime     @map("date") @db.Date
+  shift        ShiftType    @map("shift")
+  totalOutput  Int          @map("total_output")
+  reason       String?      @map("reason") @db.VarChar(255)
+  status       RecordStatus @default(PENDING) @map("status")
+  approvedBy   String?      @map("approved_by") @db.Uuid
+  approvedAt   DateTime?    @map("approved_at") @db.Timestamp(0)
+
+  // Liên kết với phiếu công đoạn
+  formId String? @map("form_id") @db.Uuid
+
+  // Các trường thời gian
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  // Các mối quan hệ
+  user             User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  approver         User?                  @relation("ApprovedRecords", fields: [approvedBy], references: [id])
+  bagProcess       BagProcess             @relation(fields: [bagProcessId], references: [id])
+  handBag          HandBag                @relation(fields: [handBagId], references: [id])
+  hourlyData       ProductionHourlyData[]
+  productionIssues ProductionIssue[]
+  form             ProductionProcessForm? @relation(fields: [formId], references: [id])
+
+  @@unique([userId, bagProcessId, handBagId, date, shift], map: "unique_production_record")
+  @@index([date], map: "idx_production_date")
+  @@index([status], map: "idx_production_status")
+  @@index([formId], map: "idx_production_form_id")
   @@map("production_records")
 }
 
-enum NotificationAction {
-  liked
-  followed
-  replied
+// Bảng lưu sản lượng theo từng giờ
+model ProductionHourlyData {
+  id                 String   @id @default(uuid()) @map("id") @db.Uuid
+  productionRecordId String   @map("production_record_id") @db.Uuid
+  hour               Int      @map("hour")
+  output             Int      @map("output")
+  qualityIssues      Int?     @default(0) @map("quality_issues") // Số lượng có vấn đề chất lượng
+  notes              String?  @map("notes") @db.VarChar(255)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+
+  productionRecord ProductionRecord @relation(fields: [productionRecordId], references: [id], onDelete: Cascade)
+
+  @@unique([productionRecordId, hour], map: "unique_hourly_data")
+  @@map("production_hourly_data")
 }
 
-enum CommentStatus {
-  pending
-  approved
-  rejected
-  deleted
-  spam
+// ==================== DIGITAL FORM MODELS ====================
+
+// Digital form (thay thế phiếu công đoạn giấy)
+model DigitalProductionForm {
+  id          String       @id @default(uuid()) @map("id") @db.Uuid
+  formCode    String       @unique @map("form_code") @db.VarChar(50) // Mã tự động sinh
+  formName    String       @map("form_name") @db.VarChar(100) // Tên form
+  description String?      @map("description") @db.Text
+  date        DateTime     @map("date") @db.Date // Ngày áp dụng
+  shiftType   ShiftType    @map("shift_type") // Ca sản xuất
+  lineId      String       @map("line_id") @db.Uuid // Liên kết với line
+  status      RecordStatus @default(DRAFT) @map("status") // Trạng thái form
+
+  // User actions
+  createdById String    @map("created_by_id") @db.Uuid // Người tạo
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedById String?   @map("updated_by_id") @db.Uuid // Người cập nhật
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamp(0)
+  submitTime  DateTime? @map("submit_time") @db.Timestamp(0) // Thời gian nộp
+
+  // Approval workflow
+  approvalRequestId String?   @map("approval_request_id") @db.Uuid // ID của yêu cầu phê duyệt
+  approvedAt        DateTime? @map("approved_at") @db.Timestamp(0) // Thời gian duyệt
+
+  // Sync status
+  isExported Boolean @default(false) @map("is_exported") // Đã xuất ra file chưa
+  syncStatus String? @map("sync_status") @db.VarChar(50) // Trạng thái đồng bộ với hệ thống khác
+
+  // Relationships
+  line    Line                  @relation(fields: [lineId], references: [id])
+  creator User                  @relation("FormCreator", fields: [createdById], references: [id])
+  updater User?                 @relation("FormUpdater", fields: [updatedById], references: [id])
+  entries ProductionFormEntry[]
+
+  @@index([date, shiftType], map: "idx_digital_form_date_shift")
+  @@index([lineId], map: "idx_digital_form_line")
+  @@index([status], map: "idx_digital_form_status")
+  @@index([createdById], map: "idx_digital_form_creator")
+  @@map("digital_production_forms")
 }
 
-enum PostType {
-  text
-  media
+// Mục trong form - tích hợp thông tin điểm danh
+model ProductionFormEntry {
+  id        String @id @default(uuid()) @map("id") @db.Uuid
+  formId    String @map("form_id") @db.Uuid // Liên kết với form
+  userId    String @map("user_id") @db.Uuid // Công nhân
+  handBagId String @map("hand_bag_id") @db.Uuid // Mã túi
+  processId String @map("process_id") @db.Uuid // Công đoạn
+
+  // Thông tin sản lượng theo giờ (JSON để lưu trữ linh hoạt)
+  hourlyData  Json @default("{}") @map("hourly_data") // Format: {"hour1": 10, "hour2": 15, ...}
+  totalOutput Int  @default(0) @map("total_output") // Tổng sản lượng
+
+  // Thông tin điểm danh tích hợp
+  attendanceStatus AttendanceStatus @default(PRESENT) @map("attendance_status")
+  checkInTime      DateTime?        @map("check_in_time") @db.Timestamp(0)
+  checkOutTime     DateTime?        @map("check_out_time") @db.Timestamp(0)
+  attendanceNote   String?          @map("attendance_note") @db.VarChar(255)
+
+  // Issues
+  issues Json? @map("issues") // Format: [{"type": "ABSENT", "hour": 2, "impact": 50, "description": "..."}]
+
+  // Đánh giá chất lượng
+  qualityScore Int?    @default(100) @map("quality_score") // Điểm chất lượng (0-100)
+  qualityNotes String? @map("quality_notes") @db.VarChar(255)
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  // Relationships
+  form    DigitalProductionForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+  user    User                  @relation("WorkerEntry", fields: [userId], references: [id])
+  handBag HandBag               @relation(fields: [handBagId], references: [id])
+  process BagProcess            @relation(fields: [processId], references: [id])
+
+  @@unique([formId, userId, handBagId, processId], name: "unique_form_entry")
+  @@index([formId], map: "idx_form_entry_form")
+  @@index([userId], map: "idx_form_entry_user")
+  @@map("production_form_entries")
+}
+
+// ==================== KÝ DUYỆT ĐIỆN TỬ ====================
+
+// Bảng luồng phê duyệt - workflow
+model ApprovalWorkflow {
+  id          String   @id @default(uuid()) @map("id") @db.Uuid
+  name        String   @map("name") @db.VarChar(100)
+  description String?  @map("description") @db.Text
+  entityType  String   @map("entity_type") @db.VarChar(50) // Loại đối tượng áp dụng: LeaveRequest, DigitalForm,...
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  steps ApprovalWorkflowStep[]
+
+  @@index([entityType], map: "idx_approval_workflow_entity_type")
+  @@index([isActive], map: "idx_approval_workflow_active")
+  @@map("approval_workflows")
+}
+
+// Bảng các bước trong luồng phê duyệt
+model ApprovalWorkflowStep {
+  id         String @id @default(uuid()) @map("id") @db.Uuid
+  workflowId String @map("workflow_id") @db.Uuid
+  stepOrder  Int    @map("step_order") // Thứ tự bước phê duyệt
+
+  // Cấu hình người phê duyệt
+  approverType   String  @map("approver_type") @db.VarChar(50) // ROLE, DIRECT_MANAGER, SPECIFIC_USER,...
+  approverRoleId String? @map("approver_role_id") @db.VarChar(50) // Role nếu approverType là ROLE
+  approverUserId String? @map("approver_user_id") @db.Uuid // User ID nếu approverType là SPECIFIC_USER
+  isRequired     Boolean @default(true) @map("is_required") // Bước bắt buộc hay không
+
+  // Cấu hình quy trình
+  notifyOnStart    Boolean @default(true) @map("notify_on_start") // Gửi thông báo khi đến bước này
+  canReject        Boolean @default(true) @map("can_reject") // Có thể từ chối hay không
+  timeoutHours     Int?    @map("timeout_hours") // Thời gian tối đa để phê duyệt (giờ)
+  escalationUserId String? @map("escalation_user_id") @db.Uuid // Người được chuyển tiếp nếu timeout
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  workflow ApprovalWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@unique([workflowId, stepOrder], map: "unique_workflow_step")
+  @@index([workflowId], map: "idx_approval_step_workflow")
+  @@map("approval_workflow_steps")
+}
+
+// Bảng lưu dấu ký điện tử
+model DigitalSignature {
+  id                String    @id @default(uuid()) @map("id") @db.Uuid
+  userId            String    @map("user_id") @db.Uuid
+  entityId          String    @map("entity_id") @db.Uuid // ID của đối tượng được ký
+  entityType        String    @map("entity_type") @db.VarChar(50) // Loại đối tượng
+  approvalRequestId String?   @map("approval_request_id") @db.Uuid // Liên kết với ApprovalRequest
+  signatureHash     String    @map("signature_hash") @db.VarChar(255) // Hash chữ ký
+  signedAt          DateTime  @default(now()) @map("signed_at") @db.Timestamp(0)
+  ipAddress         String?   @map("ip_address") @db.VarChar(45)
+  deviceInfo        String?   @map("device_info") @db.VarChar(255)
+  status            String    @map("status") @db.VarChar(50) // VALID, REVOKED
+  revokedAt         DateTime? @map("revoked_at") @db.Timestamp(0)
+  revokedBy         String?   @map("revoked_by") @db.Uuid
+  comment           String?   @map("comment") @db.VarChar(255)
+
+  // Relationships
+  user            User             @relation(fields: [userId], references: [id])
+  approvalRequest ApprovalRequest? @relation("ApprovalSignatures", fields: [approvalRequestId], references: [id])
+  revoker         User?            @relation("SignatureRevoker", fields: [revokedBy], references: [id])
+
+  @@index([userId], map: "idx_signature_user")
+  @@index([entityId, entityType], map: "idx_signature_entity")
+  @@index([signedAt], map: "idx_signature_signed_at")
+  @@index([approvalRequestId], map: "idx_signature_approval")
+  @@map("digital_signatures")
+}
+
+// ==================== NGHỈ PHÉP VÀ CHẤM CÔNG MỞ RỘNG ====================
+
+// Ngân sách phép năm - Lưu thông tin tổng ngày phép của nhân viên
+model LeaveBalance {
+  id          String    @id @default(uuid()) @map("id") @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  year        Int       @map("year")
+  leaveType   LeaveType @map("leave_type")
+  totalDays   Float     @map("total_days") // Tổng số ngày phép
+  usedDays    Float     @default(0) @map("used_days") // Số ngày đã sử dụng
+  pendingDays Float     @default(0) @map("pending_days") // Số ngày đang chờ duyệt
+  notes       String?   @map("notes") @db.VarChar(255)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  @@unique([userId, year, leaveType], map: "unique_leave_balance")
+  @@index([userId, year], map: "idx_leave_balance_user_year")
+  @@map("leave_balances")
+}
+
+// Lịch sử phép đã sử dụng - Chi tiết ngày phép đã dùng
+model LeaveTransaction {
+  id             String      @id @default(uuid()) @map("id") @db.Uuid
+  userId         String      @map("user_id") @db.Uuid
+  leaveRequestId String      @map("leave_request_id") @db.Uuid // Liên kết với yêu cầu phép
+  leaveType      LeaveType   @map("leave_type")
+  date           DateTime    @map("date") @db.Date // Ngày nghỉ phép
+  hours          Float       @map("hours") // Số giờ nghỉ (0.5 = nửa ngày)
+  status         LeaveStatus @map("status") // PENDING, APPROVED, REJECTED, CANCELLED
+  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt      DateTime    @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  // Liên kết với LeaveRequest
+  leaveRequest LeaveRequest @relation(fields: [leaveRequestId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date], map: "idx_leave_transaction_user_date")
+  @@index([leaveRequestId], map: "idx_leave_transaction_request")
+  @@map("leave_transactions")
+}
+
+// Cấu hình ngày nghỉ lễ
+model Holiday {
+  id          String   @id @default(uuid()) @map("id") @db.Uuid
+  name        String   @map("name") @db.VarChar(100)
+  date        DateTime @map("date") @db.Date
+  description String?  @map("description") @db.VarChar(255)
+  isFullDay   Boolean  @default(true) @map("is_full_day")
+  isRecurring Boolean  @default(false) @map("is_recurring")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  @@unique([date, name], map: "unique_holiday")
+  @@index([date], map: "idx_holiday_date")
+  @@map("holidays")
+}
+
+// Cấu hình ca làm việc linh hoạt
+model WorkSchedule {
+  id            String    @id @default(uuid()) @map("id") @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  dayOfWeek     Int       @map("day_of_week") // 0-6 (Chủ nhật - Thứ bảy)
+  startTime     String    @map("start_time") @db.VarChar(5) // "08:00"
+  endTime       String    @map("end_time") @db.VarChar(5) // "17:00"
+  isWorkingDay  Boolean   @default(true) @map("is_working_day")
+  effectiveFrom DateTime  @map("effective_from") @db.Date
+  effectiveTo   DateTime? @map("effective_to") @db.Date
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  @@index([userId], map: "idx_work_schedule_user")
+  @@index([dayOfWeek], map: "idx_work_schedule_day")
+  @@map("work_schedules")
+}
+
+// ==================== DATA EXPORT & REPORTING ====================
+
+// Bảng xuất dữ liệu
+model DataExport {
+  id          String    @id @default(uuid()) @map("id") @db.Uuid
+  exportType  String    @map("export_type") @db.VarChar(50) // ATTENDANCE, PRODUCTION, LEAVE, etc.
+  parameters  Json?     @map("parameters") // Lưu tham số xuất dữ liệu
+  filePath    String?   @map("file_path") @db.VarChar(255)
+  fileFormat  String    @map("file_format") @db.VarChar(10) // PDF, XLSX, CSV
+  startDate   DateTime  @map("start_date") @db.Date
+  endDate     DateTime  @map("end_date") @db.Date
+  lineId      String?   @map("line_id") @db.Uuid
+  createdById String    @map("created_by_id") @db.Uuid
+  status      String    @map("status") @db.VarChar(20) // PROCESSING, COMPLETED, FAILED
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp(0)
+  completedAt DateTime? @map("completed_at") @db.Timestamp(0)
+
+  line      Line? @relation(fields: [lineId], references: [id], onDelete: SetNull)
+  createdBy User  @relation("ExportCreator", fields: [createdById], references: [id])
+
+  @@index([exportType], map: "idx_data_export_type")
+  @@index([startDate, endDate], map: "idx_data_export_date_range")
+  @@index([status], map: "idx_data_export_status")
+  @@map("data_exports")
+}
+
+// Bảng báo cáo (có thể mở rộng)
+model Report {
+  id           String    @id @default(uuid()) @map("id") @db.Uuid
+  name         String    @map("name") @db.VarChar(100)
+  description  String?   @map("description") @db.Text
+  reportType   String    @map("report_type") @db.VarChar(50) // DAILY, WEEKLY, MONTHLY
+  reportFormat String    @default("PDF") @map("report_format") @db.VarChar(10)
+  schedule     String?   @map("schedule") @db.VarChar(50) // CRON expression
+  parameters   Json      @default("{}") @map("parameters")
+  lastRunAt    DateTime? @map("last_run_at") @db.Timestamp(0)
+  nextRunAt    DateTime? @map("next_run_at") @db.Timestamp(0)
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  @@index([reportType], map: "idx_report_type")
+  @@index([isActive], map: "idx_report_active")
+  @@map("reports")
 }

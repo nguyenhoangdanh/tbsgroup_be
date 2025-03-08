@@ -1,4 +1,0 @@
-
-export const WORK_INFO_REPOSITORY = Symbol('WORK_INFO_REPOSITORY');
-export const WORK_INFO_SERVICE = Symbol('WORK_INFO_SERVICE');
-export const TOKEN_PROVIDER = Symbol('TOKEN_PROVIDER');

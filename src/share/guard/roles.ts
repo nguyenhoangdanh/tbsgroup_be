@@ -19,6 +19,12 @@ export class RolesGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest();
     const requester = request['requester'] as Requester;
+
+    // Lưu ý: SUPER_ADMIN luôn có quyền truy cập mọi endpoint
+    if (requester.role === UserRole.SUPER_ADMIN) {
+      return true;
+    }
+
     return requiredRoles.some((role) => requester.role === role);
   }
 }

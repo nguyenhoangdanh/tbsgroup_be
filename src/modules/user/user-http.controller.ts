@@ -9,6 +9,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Request,
   Res,
   UseGuards,
@@ -17,74 +18,186 @@ import {
   Request as ExpressRequest,
   Response as ExpressResponse,
 } from 'express';
-import { AppError, ErrNotFound, ReqWithRequester, UserRole } from 'src/share';
-import { RemoteAuthGuard, Roles, RolesGuard } from 'src/share/guard';
-import { USER_REPOSITORY, USER_SERVICE } from './user.di-token';
 import {
+  AppError,
+  ErrNotFound,
+  ReqWithRequester,
+  TokenPayload,
+  UserRole,
+} from 'src/share';
+import { RemoteAuthGuard, Roles, RolesGuard } from 'src/share/guard';
+import { TOKEN_SERVICE, USER_REPOSITORY, USER_SERVICE } from './user.di-token';
+import {
+  ChangePasswordDTO,
+  PaginationDTO,
+  RequestPasswordResetDTO,
+  UserCondDTO,
   UserLoginDTO,
   UserRegistrationDTO,
   UserResetPasswordDTO,
+  UserRoleAssignmentDTO,
   UserUpdateDTO,
   UserUpdateProfileDTO,
 } from './user.dto';
 import { ErrInvalidToken, User } from './user.model';
-import { IUserRepository, IUserService } from './user.port';
+import { ITokenService, IUserRepository, IUserService } from './user.port';
 
 @Controller()
 export class UserHttpController {
   constructor(
     @Inject(USER_SERVICE) private readonly userService: IUserService,
+    @Inject(TOKEN_SERVICE) private readonly tokenService: ITokenService,
   ) {}
 
+  /**
+   * Auth endpoints
+   */
   @Post('auth/register')
-  @HttpCode(HttpStatus.OK)
+  @HttpCode(HttpStatus.CREATED)
   async register(@Body() dto: UserRegistrationDTO) {
-    const data = await this.userService.register(dto);
-    return { data };
+    const userId = await this.userService.register(dto);
+    return {
+      success: true,
+      data: { userId },
+    };
   }
 
   @Post('auth/login')
   @HttpCode(HttpStatus.OK)
-  async authenticate(@Res() res: ExpressResponse, @Body() dto: UserLoginDTO) {
-    const data = await this.userService.login(dto);
-    res.cookie('accessToken', data, {
-      httpOnly: true, // Ngăn chặn XSS
-      // secure: process.env.NODE_ENV === 'production', // Chỉ gửi qua HTTPS nếu production
-      // sameSite: 'strict', // Chống CSRF
-      // secure: false, // ❌ Không dùng true trên localhost
-      // sameSite: 'lax', // 🛠 "strict" có thể chặn request từ frontend
-      secure: process.env.NODE_ENV === 'production', // Chỉ bật nếu chạy HTTPS
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // Cần 'none' nếu frontend và backend khác domain
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 ngày
+  async login(
+    @Res({ passthrough: true }) res: ExpressResponse,
+    @Body() dto: UserLoginDTO,
+  ) {
+    const { token, expiresIn } = await this.userService.login(dto);
+
+    // Set HTTP-only cookie with the token
+    res.cookie('accessToken', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: expiresIn * 1000, // Convert seconds to milliseconds
     });
 
-    res.setHeader('Authorization', `Bearer ${data}`);
-    return res.json({ data });
+    // Also send token in response for mobile/SPA clients
+    return {
+      success: true,
+      data: {
+        token,
+        expiresIn,
+      },
+    };
   }
 
-  @Get('profile')
+  @Post('auth/logout')
+  @UseGuards(RemoteAuthGuard)
   @HttpCode(HttpStatus.OK)
-  async profile(@Request() req: ExpressRequest) {
-    //   // Ưu tiên lấy token từ cookie trước
-    // if (req.cookies?.accessToken) {
-    //   return req.cookies.accessToken;
-    // }
+  async logout(
+    @Request() req: ReqWithRequester,
+    @Res({ passthrough: true }) res: ExpressResponse,
+  ) {
+    // Get token from request
+    const token =
+      req.cookies?.accessToken || req.headers.authorization?.split(' ')[1];
 
-    // // Nếu không có trong cookie, lấy từ Authorization header
-    // if (req.headers.authorization) {
-    //   const [type, token] = req.headers.authorization.split(' ');
-    //   if (type === 'Bearer') {
-    //     return token;
-    //   }
-    // }
+    if (token) {
+      // Invalidate token
+      await this.userService.logout(token);
+    }
 
-    const token = req.cookies?.accessToken;
+    // Clear cookie
+    res.clearCookie('accessToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    });
+
+    return { success: true };
+  }
+
+  @Post('auth/refresh')
+  @HttpCode(HttpStatus.OK)
+  async refreshToken(
+    @Res({ passthrough: true }) res: ExpressResponse,
+    @Request() req: ExpressRequest,
+  ) {
+    // Get token from request
+    const token =
+      req.cookies?.accessToken || req.headers.authorization?.split(' ')[1];
+
     if (!token) {
       throw AppError.from(ErrInvalidToken, 401);
     }
-    const requester = await this.userService.introspectToken(token);
-    const data = await this.userService.profile(requester.sub);
-    return { data };
+
+    // Refresh token
+    const { token: newToken, expiresIn } =
+      await this.userService.refreshToken(token);
+
+    // Set new cookie
+    res.cookie('accessToken', newToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: expiresIn * 1000, // Convert seconds to milliseconds
+    });
+
+    return {
+      success: true,
+      data: {
+        token: newToken,
+        expiresIn,
+      },
+    };
+  }
+
+  /**
+   * Password management endpoints
+   */
+  @Post('auth/request-password-reset')
+  @HttpCode(HttpStatus.OK)
+  async requestPasswordReset(@Body() dto: RequestPasswordResetDTO) {
+    const { resetToken, expiryDate } =
+      await this.userService.requestPasswordReset(dto);
+
+    // In production, you would send this token via email
+    // For development, return it directly
+    return {
+      success: true,
+      data: {
+        resetToken,
+        expiryDate,
+        // Message to guide user in production
+        message: 'Mã xác thực đặt lại mật khẩu đã được gửi đến email của bạn.',
+      },
+    };
+  }
+
+  @Post('auth/reset-password')
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(@Body() dto: UserResetPasswordDTO) {
+    await this.userService.resetPassword(dto);
+    return { success: true };
+  }
+
+  @Post('auth/change-password')
+  @UseGuards(RemoteAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async changePassword(
+    @Request() req: ReqWithRequester,
+    @Body() dto: ChangePasswordDTO,
+  ) {
+    await this.userService.changePassword(req.requester.sub, dto);
+    return { success: true };
+  }
+
+  /**
+   * Profile management endpoints
+   */
+  @Get('profile')
+  @UseGuards(RemoteAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async getProfile(@Request() req: ReqWithRequester) {
+    const data = await this.userService.profile(req.requester.sub);
+    return { success: true, data };
   }
 
   @Patch('profile')
@@ -94,74 +207,145 @@ export class UserHttpController {
     @Request() req: ReqWithRequester,
     @Body() dto: UserUpdateProfileDTO,
   ) {
-    const requester = req.requester;
-    await this.userService.update(requester, requester.sub, dto);
-    return { data: true };
+    await this.userService.update(req.requester, req.requester.sub, dto);
+    return { success: true };
+  }
+
+  /**
+   * User management endpoints
+   */
+  @Get('users')
+  @UseGuards(RemoteAuthGuard, RolesGuard)
+  @Roles(
+    UserRole.ADMIN,
+    UserRole.SUPER_ADMIN,
+    UserRole.FACTORY_MANAGER,
+    UserRole.LINE_MANAGER,
+    UserRole.TEAM_LEADER,
+  )
+  @HttpCode(HttpStatus.OK)
+  async listUsers(
+    @Request() req: ReqWithRequester,
+    @Query() conditions: UserCondDTO,
+    @Query() pagination: PaginationDTO,
+  ) {
+    const result = await this.userService.listUsers(
+      req.requester,
+      conditions,
+      pagination,
+    );
+    return { success: true, ...result };
+  }
+
+  @Get('users/:id')
+  @UseGuards(RemoteAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async getUser(@Request() req: ReqWithRequester, @Param('id') id: string) {
+    // Check if user is requesting their own profile or has admin access
+    if (
+      req.requester.sub !== id &&
+      req.requester.role !== UserRole.ADMIN &&
+      req.requester.role !== UserRole.SUPER_ADMIN
+    ) {
+      // Check if user has access to this user
+      const hasAccess = await this.userService.canAccessEntity(
+        req.requester.sub,
+        'user',
+        id,
+      );
+      if (!hasAccess) {
+        throw AppError.from(
+          new Error('Bạn không có quyền xem thông tin người dùng này'),
+          403,
+        );
+      }
+    }
+
+    const data = await this.userService.profile(id);
+    return { success: true, data };
   }
 
   @Patch('users/:id')
-  @UseGuards(RemoteAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @UseGuards(RemoteAuthGuard)
   @HttpCode(HttpStatus.OK)
   async updateUser(
     @Request() req: ReqWithRequester,
     @Param('id') id: string,
     @Body() dto: UserUpdateDTO,
   ) {
-    // 200Lab TODO: can be omitted, because we already check in guards
-    const requester = req.requester;
-    await this.userService.update(requester, id, dto);
-    return { data: true };
+    await this.userService.update(req.requester, id, dto);
+    return { success: true };
   }
 
   @Delete('users/:id')
-  @UseGuards(RemoteAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @UseGuards(RemoteAuthGuard)
   @HttpCode(HttpStatus.OK)
   async deleteUser(@Request() req: ReqWithRequester, @Param('id') id: string) {
-    // 200Lab TODO: can be omitted, because we already check in guards
-    const requester = req.requester;
-    await this.userService.delete(requester, id);
-    return { data: true };
+    await this.userService.delete(req.requester, id);
+    return { success: true };
   }
 
-  @Post('/auth/logout')
+  /**
+   * Role management endpoints
+   */
+  @Get('users/:id/roles')
+  @UseGuards(RemoteAuthGuard)
   @HttpCode(HttpStatus.OK)
-  async logout(@Res() res: ExpressResponse) {
-    res.clearCookie('accessToken', {
-      httpOnly: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 0,
-    });
-    res.status(200).json({ data: true }); // Gửi response JSON và kết thúc request
+  async getUserRoles(@Param('id') id: string) {
+    const roles = await this.userService.getUserRoles(id);
+    return { success: true, data: roles };
   }
 
-  @Post('auth/verify')
-  @HttpCode(HttpStatus.OK)
-  async verify(@Body() dto: UserResetPasswordDTO) {
-    const userId = await this.userService.verifyData(dto);
-    return { data: userId };
-  }
-
-  @Patch('auth/reset-password')
-  @HttpCode(HttpStatus.OK)
-  async resetPassword(
-    @Request() req: ExpressRequest,
-    @Body() dto: UserResetPasswordDTO,
+  @Post('users/:id/roles')
+  @UseGuards(RemoteAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @HttpCode(HttpStatus.CREATED)
+  async assignRole(
+    @Request() req: ReqWithRequester,
+    @Param('id') id: string,
+    @Body() dto: UserRoleAssignmentDTO,
   ) {
-    // const token = req.cookies?.accessToken;
-    // if (!token) {
-    //   throw AppError.from(ErrInvalidToken, 401);
-    // }
-    // const requester = await this.userService.introspectToken(token);
-    // if (requester.sub) {
-    await this.userService.resetPassword(dto);
-    // }
-    return { data: true };
+    await this.userService.assignRole(req.requester, id, dto);
+    return { success: true };
+  }
+
+  @Delete('users/:id/roles/:role')
+  @UseGuards(RemoteAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @HttpCode(HttpStatus.OK)
+  async removeRole(
+    @Request() req: ReqWithRequester,
+    @Param('id') id: string,
+    @Param('role') role: UserRole,
+    @Body() body: { scope?: string },
+  ) {
+    await this.userService.removeRole(req.requester, id, role, body.scope);
+    return { success: true };
+  }
+
+  /**
+   * Access control endpoints
+   */
+  @Get('access/:entityType/:entityId')
+  @UseGuards(RemoteAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async checkAccess(
+    @Request() req: ReqWithRequester,
+    @Param('entityType') entityType: string,
+    @Param('entityId') entityId: string,
+  ) {
+    const hasAccess = await this.userService.canAccessEntity(
+      req.requester.sub,
+      entityType,
+      entityId,
+    );
+    return { success: true, data: hasAccess };
   }
 }
 
+/**
+ * RPC Controller for internal service communication
+ */
 @Controller('rpc')
 export class UserRpcHttpController {
   constructor(
@@ -171,7 +355,9 @@ export class UserRpcHttpController {
 
   @Post('introspect')
   @HttpCode(HttpStatus.OK)
-  async introspect(@Body() dto: { token: string }) {
+  async introspect(
+    @Body() dto: { token: string },
+  ): Promise<{ data: TokenPayload }> {
     const result = await this.userService.introspectToken(dto.token);
     return { data: result };
   }
@@ -180,24 +366,34 @@ export class UserRpcHttpController {
   @HttpCode(HttpStatus.OK)
   async getUser(@Param('id') id: string) {
     const user = await this.userRepository.get(id);
-
     if (!user) {
-      throw AppError.from(ErrNotFound, 400);
+      throw AppError.from(ErrNotFound, 404);
     }
-
     return { data: this._toResponseModel(user) };
   }
 
   @Post('users/list-by-ids')
   @HttpCode(HttpStatus.OK)
   async listUsersByIds(@Body('ids') ids: string[]) {
-    const data = await this.userRepository.listByIds(ids);
-    return { data: data.map(this._toResponseModel) };
+    const users = await this.userRepository.listByIds(ids);
+    return { data: users.map(this._toResponseModel) };
   }
 
-  private _toResponseModel(data: User): Omit<User, 'password' | 'salt'> {
-    // const { password, salt, ...rest } = data;
-    const { ...rest } = data;
+  @Post('users/check-access')
+  @HttpCode(HttpStatus.OK)
+  async checkUserAccess(
+    @Body() body: { userId: string; entityType: string; entityId: string },
+  ) {
+    const hasAccess = await this.userService.canAccessEntity(
+      body.userId,
+      body.entityType,
+      body.entityId,
+    );
+    return { data: hasAccess };
+  }
+
+  private _toResponseModel(user: User): Omit<User, 'password' | 'salt'> {
+    const { password, salt, ...rest } = user;
     return rest;
   }
 }

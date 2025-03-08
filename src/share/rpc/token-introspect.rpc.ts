@@ -24,4 +24,26 @@ export class TokenIntrospectRPCClient implements ITokenIntrospect {
       };
     }
   }
+
+  /**
+   * Checks if the token is blacklisted in the remote service
+   * @param token The token to check
+   * @returns Promise<boolean> True if the token is blacklisted, false otherwise
+   */
+  async isTokenBlacklisted(token: string): Promise<boolean> {
+    try {
+      // Call the remote service to check if the token is blacklisted
+      const { data } = await axios.post(`${this.url}/blacklist/check`, {
+        token,
+      });
+      return data.isBlacklisted === true;
+    } catch (error) {
+      // Log the error
+      console.error('Error checking token blacklist status:', error);
+
+      // If we can't reach the service, assume token is valid (not blacklisted)
+      // This is a safe default, as the introspect method will still validate the token
+      return false;
+    }
+  }
 }

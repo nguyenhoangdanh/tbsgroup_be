@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { TokenIntrospectResult, TokenPayload } from 'src/share';
 import { randomBytes } from 'crypto';
@@ -10,6 +10,7 @@ import { REDIS_CLIENT } from 'src/common/di-tokens';
 export class TokenService implements ITokenService {
   private readonly TOKEN_BLACKLIST_PREFIX = 'token:blacklist:';
   private readonly DEFAULT_EXPIRY = '1d'; // 1 day default token expiry
+  private readonly logger = new Logger(TokenService.name);
 
   constructor(
     private readonly jwtService: JwtService,
@@ -40,6 +41,7 @@ export class TokenService implements ITokenService {
       const payload = await this.jwtService.verifyAsync<TokenPayload>(token);
       return payload;
     } catch (error) {
+      this.logger.error(`Token verification failed: ${error.message}`);
       return null;
     }
   }
@@ -49,6 +51,7 @@ export class TokenService implements ITokenService {
       // Decode token mà không verify (để lấy thông tin từ token hết hạn)
       return this.jwtService.decode(token) as TokenPayload;
     } catch (error) {
+      this.logger.error(`Token decoding failed: ${error.message}`);
       return null;
     }
   }
@@ -68,14 +71,36 @@ export class TokenService implements ITokenService {
         Math.floor((expiryTimestamp - currentTimestamp) / 1000),
       );
     } catch (error) {
+      this.logger.error(`Error getting token expiry: ${error.message}`);
       return 0;
     }
   }
 
   async isTokenBlacklisted(token: string): Promise<boolean> {
-    const blacklistKey = `${this.TOKEN_BLACKLIST_PREFIX}${token}`;
-    const exists = await this.redisClient.exists(blacklistKey);
-    return exists === 1;
+    try {
+      const blacklistKey = `${this.TOKEN_BLACKLIST_PREFIX}${token}`;
+      const exists = await this.redisClient.exists(blacklistKey);
+      return exists === 1;
+    } catch (error) {
+      this.logger.error(
+        `Redis connection error: ${error.message}`,
+        error.stack,
+      );
+
+      // Chiến lược graceful degradation
+      if (
+        error.code === 'ECONNREFUSED' ||
+        error.message.includes('connection')
+      ) {
+        this.logger.warn(
+          'Redis unavailable, falling back to JWT validation only',
+        );
+        return false; // Cho phép token tiếp tục nếu chỉ Redis lỗi
+      }
+
+      // Lỗi không xác định khác
+      throw error;
+    }
   }
 
   async blacklistToken(token: string, expiresIn: number): Promise<void> {

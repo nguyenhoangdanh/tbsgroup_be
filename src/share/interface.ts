@@ -47,6 +47,7 @@ export interface TokenIntrospectResult {
 
 export interface ITokenIntrospect {
   introspect(token: string): Promise<TokenIntrospectResult>;
+  isTokenBlacklisted(token: string): Promise<boolean>;
 }
 export interface IPostRpc {
   findById(id: string): Promise<Post | null>;

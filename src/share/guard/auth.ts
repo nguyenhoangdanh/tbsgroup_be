@@ -3,6 +3,7 @@ import {
   ExecutionContext,
   Inject,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Request } from 'express';
@@ -12,6 +13,7 @@ import { ITokenIntrospect } from '../interface';
 
 @Injectable()
 export class RemoteAuthGuard implements CanActivate {
+  private readonly logger = new Logger(RemoteAuthGuard.name);
   constructor(
     @Inject(TOKEN_INTROSPECTOR) private readonly introspector: ITokenIntrospect,
   ) {}
@@ -25,22 +27,65 @@ export class RemoteAuthGuard implements CanActivate {
     }
 
     try {
+      // Kiểm tra blacklist trước với xử lý lỗi
+      try {
+        const isBlacklisted = await this.introspector.isTokenBlacklisted(token);
+        if (isBlacklisted) {
+          this.logger.debug('Token is blacklisted');
+          throw new UnauthorizedException(
+            'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại',
+          );
+        }
+      } catch (blacklistError) {
+        if (blacklistError instanceof UnauthorizedException) {
+          throw blacklistError;
+        }
+        this.logger.error(
+          `Error checking token blacklist: ${blacklistError.message}`,
+          blacklistError.stack,
+        );
+        // Tiếp tục với introspect nếu lỗi blacklist không phải UnauthorizedException
+      }
+
+      // Introspect token
       const { payload, error, isOk } =
         await this.introspector.introspect(token);
 
       if (!isOk || !payload) {
-        throw ErrTokenInvalid.withLog('Token parse failed').withLog(
-          error?.message || 'Invalid token',
+        const errorMsg = error?.message || 'Invalid token';
+        this.logger.debug(`Token introspection failed: ${errorMsg}`);
+        throw ErrTokenInvalid.withLog('Token parse failed').withLog(errorMsg);
+      }
+
+      // Đặt payload vào request
+      request['requester'] = payload;
+
+      // Log thành công (debug level)
+      this.logger.debug(
+        `Token introspection successful for user: ${payload.sub}`,
+      );
+
+      return true;
+    } catch (error) {
+      this.logger.error(
+        `Token introspection error: ${error.message}`,
+        error.stack,
+      );
+
+      // Xử lý lỗi cụ thể hơn
+      if (error instanceof UnauthorizedException) {
+        throw error; // Giữ nguyên lỗi gốc nếu đã là UnauthorizedException
+      }
+
+      // Khác biệt thông báo lỗi dựa trên loại lỗi
+      if (error.name === 'TokenExpiredError') {
+        throw new UnauthorizedException(
+          'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại',
         );
       }
 
-      request['requester'] = payload;
-    } catch (error) {
-      console.error('Token introspect error:', error);
       throw new UnauthorizedException('Token không hợp lệ hoặc đã hết hạn');
     }
-
-    return true;
   }
 }
 

@@ -81,8 +81,6 @@ export class UserService implements IUserService {
         positionId: dto.positionId || null,
       };
 
-      console.log('newUser, ', newUser);
-
       // Insert new user to repository
       await this.userRepo.insert(newUser);
 
@@ -159,14 +157,14 @@ export class UserService implements IUserService {
       const expirationTime = this.tokenService.getExpirationTime(token);
 
       // Update user's last login timestamp
-      await this.userRepo.update(user.id, {
-        lastLogin: new Date(),
-        // If user is in PENDING_ACTIVATION, auto-activate on first login
-        status:
-          user.status === UserStatus.PENDING_ACTIVATION
-            ? UserStatus.ACTIVE
-            : user.status,
-      });
+      // await this.userRepo.update(user.id, {
+      //   lastLogin: new Date(),
+      //   // If user is in PENDING_ACTIVATION, auto-activate on first login
+      //   status:
+      //     user.status === UserStatus.PENDING_ACTIVATION
+      //       ? UserStatus.ACTIVE
+      //       : user.status,
+      // });
 
       // Log successful login
       this.logger.log(`User logged in: ${user.username} (${user.id})`);
@@ -497,6 +495,10 @@ export class UserService implements IUserService {
       passwordResetToken: null,
       passwordResetExpiry: null,
       updatedAt: new Date(),
+      status:
+        user.status === UserStatus.PENDING_ACTIVATION
+          ? UserStatus.ACTIVE
+          : user.status,
     });
 
     this.logger.log(`Password reset completed for user: ${user.id}`);

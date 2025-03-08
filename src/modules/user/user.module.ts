@@ -11,7 +11,7 @@ import { UserPrismaRepository } from './user-prisma.repo';
 import { TOKEN_SERVICE, USER_REPOSITORY, USER_SERVICE } from './user.di-token';
 import { UserService } from './user.service';
 import { TokenService } from 'src/share/components/token.service';
-import { RedisModule } from 'src/common/redis.module';
+import { RedisModule } from 'src/common/redis';
 
 const repositories: Provider[] = [
   { provide: USER_REPOSITORY, useClass: UserPrismaRepository },

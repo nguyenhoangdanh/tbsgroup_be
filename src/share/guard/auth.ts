@@ -7,7 +7,6 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Request } from 'express';
-import { ErrTokenInvalid } from '../app-error';
 import { TOKEN_INTROSPECTOR } from '../di-token';
 import { ITokenIntrospect } from '../interface';
 
@@ -20,6 +19,7 @@ export class RemoteAuthGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
+    const response = context.switchToHttp().getResponse();
     const token = extractTokenFromRequest(request);
 
     if (!token) {
@@ -27,79 +27,73 @@ export class RemoteAuthGuard implements CanActivate {
     }
 
     try {
-      // Kiểm tra blacklist trước với xử lý lỗi
-      try {
-        const isBlacklisted = await this.introspector.isTokenBlacklisted(token);
-        if (isBlacklisted) {
-          this.logger.debug('Token is blacklisted');
-          throw new UnauthorizedException(
-            'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại',
-          );
-        }
-      } catch (blacklistError) {
-        if (blacklistError instanceof UnauthorizedException) {
-          throw blacklistError;
-        }
-        this.logger.error(
-          `Error checking token blacklist: ${blacklistError.message}`,
-          blacklistError.stack,
+      // Check blacklist first - this is critical
+      const isBlacklisted = await this.introspector.isTokenBlacklisted(token);
+
+      if (isBlacklisted) {
+        this.logger.debug('Token is blacklisted, rejecting request');
+        // Help the client by clearing any cookies
+        response.clearCookie('accessToken', {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        });
+        throw new UnauthorizedException(
+          'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại',
         );
-        // Tiếp tục với introspect nếu lỗi blacklist không phải UnauthorizedException
       }
 
-      // Introspect token
+      // Verify token validity
       const { payload, error, isOk } =
         await this.introspector.introspect(token);
 
       if (!isOk || !payload) {
         const errorMsg = error?.message || 'Invalid token';
         this.logger.debug(`Token introspection failed: ${errorMsg}`);
-        throw ErrTokenInvalid.withLog('Token parse failed').withLog(errorMsg);
+        throw new UnauthorizedException('Token không hợp lệ hoặc đã hết hạn');
       }
 
-      // Đặt payload vào request
+      // Set user info in request
       request['requester'] = payload;
-
-      // Log thành công (debug level)
-      this.logger.debug(
-        `Token introspection successful for user: ${payload.sub}`,
-      );
-
       return true;
     } catch (error) {
-      this.logger.error(
-        `Token introspection error: ${error.message}`,
-        error.stack,
-      );
-
-      // Xử lý lỗi cụ thể hơn
       if (error instanceof UnauthorizedException) {
-        throw error; // Giữ nguyên lỗi gốc nếu đã là UnauthorizedException
+        throw error;
       }
-
-      // Khác biệt thông báo lỗi dựa trên loại lỗi
-      if (error.name === 'TokenExpiredError') {
-        throw new UnauthorizedException(
-          'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại',
-        );
-      }
-
       throw new UnauthorizedException('Token không hợp lệ hoặc đã hết hạn');
     }
   }
 }
 
-// Helper để lấy token từ request
 function extractTokenFromRequest(request: Request): string | undefined {
-  // Ưu tiên lấy token từ cookie
-  if (request.cookies?.accessToken) {
-    return request.cookies.accessToken;
-  }
+  // Check both cookie and Authorization header
+  const cookieToken = request.cookies?.accessToken;
+  const authHeader = request.headers.authorization;
+  const headerToken = authHeader?.startsWith('Bearer ')
+    ? authHeader.substring(7)
+    : undefined;
 
-  // Nếu không có trong cookie, lấy từ Authorization header
-  const [type, token] = request.headers.authorization?.split(' ') ?? [];
-  return type === 'Bearer' ? token : undefined;
+  // Log all token sources for debugging
+  const logger = new Logger('TokenExtractor');
+  logger.debug(
+    `Token sources - Cookie: ${!!cookieToken}, Auth header: ${!!headerToken}`,
+  );
+
+  // Return the first available token
+  return cookieToken || headerToken;
 }
+
+// // Helper để lấy token từ request
+// function extractTokenFromRequest(request: Request): string | undefined {
+//   // Ưu tiên lấy token từ cookie
+//   if (request.cookies?.accessToken) {
+//     return request.cookies.accessToken;
+//   }
+
+//   // Nếu không có trong cookie, lấy từ Authorization header
+//   const [type, token] = request.headers.authorization?.split(' ') ?? [];
+//   return type === 'Bearer' ? token : undefined;
+// }
 
 @Injectable()
 export class RemoteAuthGuardOptional implements CanActivate {
@@ -112,7 +106,7 @@ export class RemoteAuthGuardOptional implements CanActivate {
     const token = extractTokenFromRequest(request);
 
     if (!token) {
-      return true; // Cho phép truy cập nếu không có token
+      throw new UnauthorizedException('Bạn cần đăng nhập để truy cập');
     }
 
     try {

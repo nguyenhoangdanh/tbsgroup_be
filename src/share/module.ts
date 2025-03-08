@@ -1,5 +1,4 @@
 import { Module, Provider } from '@nestjs/common';
-import { RedisClient } from './components';
 import { config } from './config';
 import {
   EVENT_PUBLISHER,
@@ -9,6 +8,8 @@ import {
 } from './di-token';
 import { PostRPCClient, TokenIntrospectRPCClient, UserRPCClient } from './rpc';
 import { PrismaService } from './prisma.service';
+import { RedisEventPublisher } from './components/redis-event-publisher';
+import { RedisModule, RedisProviders } from 'src/common/redis';
 
 const tokenRPCClient = new TokenIntrospectRPCClient(config.rpc.introspectUrl);
 const tokenIntrospector: Provider = {
@@ -28,16 +29,32 @@ const postRPC: Provider = {
   useValue: postRPCClient,
 };
 
-const redisClient: Provider = {
+// Thay đổi: Sử dụng RedisEventPublisher thay vì RedisClient singleton
+const redisEventPublisher: Provider = {
   provide: EVENT_PUBLISHER,
-  useFactory: async () => {
-    await RedisClient.init(config.redis.url);
-    return RedisClient.getInstance();
-  },
+  useClass: RedisEventPublisher,
 };
 
 @Module({
-  providers: [tokenIntrospector, userRPC, postRPC, redisClient, PrismaService],
-  exports: [tokenIntrospector, userRPC, postRPC, redisClient, PrismaService],
+  imports: [RedisModule],
+  providers: [
+    tokenIntrospector,
+    userRPC,
+    postRPC,
+    redisEventPublisher,
+
+    // Database provider
+    PrismaService,
+
+    // Redis providers (EVENT_PUBLISHER và các provider khác)
+    ...RedisProviders,
+  ],
+  exports: [
+    tokenIntrospector,
+    userRPC,
+    postRPC,
+    redisEventPublisher,
+    PrismaService,
+  ],
 })
 export class ShareModule {}

@@ -186,24 +186,52 @@ export class UserService implements IUserService {
     }
   }
 
+  // In user.service.ts
   async logout(token: string): Promise<void> {
     try {
+      if (!token) {
+        this.logger.warn('Attempted logout with empty token');
+        return;
+      }
+
+      // Add additional debug logging
+      this.logger.debug(
+        `Processing logout for token: ${token.substring(0, 10)}...`,
+      );
+
+      // Decode token payload first to get user info for logging
+      const payload = this.tokenService.decodeToken(token);
+      const userId = payload?.sub || 'unknown';
+
+      // Check blacklist before to see if token is already blacklisted
+      const isAlreadyBlacklisted =
+        await this.tokenService.isTokenBlacklisted(token);
+      if (isAlreadyBlacklisted) {
+        this.logger.debug(`Token for user ${userId} is already blacklisted`);
+        return;
+      }
+
       // Get token expiration time
       const expiresIn = this.tokenService.getExpirationTime(token);
+      this.logger.debug(`Token expires in ${expiresIn} seconds`);
 
-      if (expiresIn > 0) {
-        // Add token to blacklist
-        await this.tokenService.blacklistToken(token, expiresIn);
+      if (expiresIn <= 0) {
+        this.logger.debug(`Token for user ${userId} already expired`);
+        return;
+      }
 
-        // Log successful logout
-        const payload = this.tokenService.decodeToken(token);
-        if (payload) {
-          this.logger.log(`User logged out: ${payload.sub}`);
-        }
+      await this.tokenService.blacklistToken(token, expiresIn);
+
+      // Verify the token was blacklisted
+      const isNowBlacklisted =
+        await this.tokenService.isTokenBlacklisted(token);
+      if (!isNowBlacklisted) {
+        this.logger.error(`Failed to blacklist token for user ${userId}`);
+      } else {
+        this.logger.log(`User logged out: ${userId}`);
       }
     } catch (error) {
       this.logger.error(`Error during logout: ${error.message}`, error.stack);
-      // We don't throw an error here as logout should succeed even if blacklisting fails
     }
   }
 
@@ -278,16 +306,42 @@ export class UserService implements IUserService {
     return { token: newToken, expiresIn };
   }
 
-  // Profile management methods
-  async profile(userId: string): Promise<Omit<User, 'password' | 'salt'>> {
-    const user = await this.userRepo.get(userId);
-    if (!user) {
-      throw AppError.from(ErrNotFound, 404);
-    }
+  // // Profile management methods
+  // async profile(userId: string): Promise<Omit<User, 'password' | 'salt'>> {
+  //   const user = await this.userRepo.get(userId);
+  //   if (!user) {
+  //     throw AppError.from(ErrNotFound, 404);
+  //   }
 
-    // Exclude sensitive information
-    const { password, salt, ...userInfo } = user;
-    return userInfo;
+  //   // Exclude sensitive information
+  //   const { password, salt, ...userInfo } = user;
+  //   return userInfo;
+  // }
+
+  // In user.service.ts
+  async profile(userId: string): Promise<Omit<User, 'password' | 'salt'>> {
+    try {
+      const user = await this.userRepo.get(userId);
+
+      if (!user) {
+        this.logger.warn(`Profile request for non-existent user: ${userId}`);
+        throw AppError.from(ErrNotFound, 404);
+      }
+
+      // Exclude sensitive information
+      const { password, salt, ...userInfo } = user;
+      return userInfo;
+    } catch (error) {
+      if (error instanceof AppError && error.message === 'Not found') {
+        // Convert "Not found" errors to Unauthorized for profile requests
+        // This helps when a token contains a deleted user ID
+        throw AppError.from(
+          new Error('Người dùng không tồn tại, vui lòng đăng nhập lại'),
+          401,
+        );
+      }
+      throw error;
+    }
   }
 
   async update(

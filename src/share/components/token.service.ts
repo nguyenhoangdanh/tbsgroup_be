@@ -1,21 +1,24 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { TokenIntrospectResult, TokenPayload } from 'src/share';
-import { randomBytes } from 'crypto';
-import { Redis } from 'ioredis';
+import { createHash, randomBytes } from 'crypto';
+import Redis from 'ioredis';
 import { ITokenService } from '../../modules/user/user.port';
-import { REDIS_CLIENT } from 'src/common/di-tokens';
+import { REDIS_CLIENT } from 'src/common/redis/redis.constants';
 
 @Injectable()
 export class TokenService implements ITokenService {
   private readonly TOKEN_BLACKLIST_PREFIX = 'token:blacklist:';
   private readonly DEFAULT_EXPIRY = '1d'; // 1 day default token expiry
   private readonly logger = new Logger(TokenService.name);
+  private readonly useMock = process.env.USE_MOCK_REDIS === 'true';
 
   constructor(
     private readonly jwtService: JwtService,
     @Inject(REDIS_CLIENT) private readonly redisClient: Redis,
-  ) {}
+  ) {
+    this.logger.log('TokenService initialized with Redis client');
+  }
 
   async generateToken(
     payload: TokenPayload,
@@ -25,7 +28,6 @@ export class TokenService implements ITokenService {
   }
 
   async generateResetToken(): Promise<string> {
-    // Generate a random token for password reset (32 bytes = 64 hex chars)
     return randomBytes(32).toString('hex');
   }
 
@@ -34,6 +36,7 @@ export class TokenService implements ITokenService {
       // Kiểm tra xem token có trong blacklist không
       const isBlacklisted = await this.isTokenBlacklisted(token);
       if (isBlacklisted) {
+        this.logger.debug('Token is blacklisted');
         return null;
       }
 
@@ -48,7 +51,6 @@ export class TokenService implements ITokenService {
 
   decodeToken(token: string): TokenPayload | null {
     try {
-      // Decode token mà không verify (để lấy thông tin từ token hết hạn)
       return this.jwtService.decode(token) as TokenPayload;
     } catch (error) {
       this.logger.error(`Token decoding failed: ${error.message}`);
@@ -63,7 +65,7 @@ export class TokenService implements ITokenService {
         return 0;
       }
 
-      const expiryTimestamp = decoded.exp * 1000; // Convert to milliseconds
+      const expiryTimestamp = decoded.exp * 1000;
       const currentTimestamp = Date.now();
 
       return Math.max(
@@ -76,44 +78,71 @@ export class TokenService implements ITokenService {
     }
   }
 
+  // Helper method to ensure consistent hashing
+  private getTokenKey(token: string): string {
+    // Use consistent hashing for tokens to avoid storing the full JWT
+    const hash = createHash('sha256').update(token).digest('hex');
+    return `${this.TOKEN_BLACKLIST_PREFIX}${hash}`;
+  }
   async isTokenBlacklisted(token: string): Promise<boolean> {
     try {
-      const blacklistKey = `${this.TOKEN_BLACKLIST_PREFIX}${token}`;
-      const exists = await this.redisClient.exists(blacklistKey);
-      return exists === 1;
-    } catch (error) {
-      this.logger.error(
-        `Redis connection error: ${error.message}`,
-        error.stack,
-      );
-
-      // Chiến lược graceful degradation
-      if (
-        error.code === 'ECONNREFUSED' ||
-        error.message.includes('connection')
-      ) {
-        this.logger.warn(
-          'Redis unavailable, falling back to JWT validation only',
-        );
-        return false; // Cho phép token tiếp tục nếu chỉ Redis lỗi
+      if (!token) {
+        this.logger.warn('Attempted to check blacklist for empty token');
+        return false;
       }
 
-      // Lỗi không xác định khác
-      throw error;
+      const blacklistKey = this.getTokenKey(token);
+      this.logger.debug(`Checking if token is blacklisted: ${blacklistKey}`);
+
+      const exists = await this.redisClient.exists(blacklistKey);
+      const isBlacklisted = exists === 1;
+
+      this.logger.debug(
+        `Token blacklist check result: ${isBlacklisted ? 'blacklisted' : 'valid'}`,
+      );
+
+      return isBlacklisted;
+    } catch (error) {
+      this.logger.error(
+        `Redis error in isTokenBlacklisted: ${error.message}`,
+        error.stack,
+      );
+      return false; // Graceful degradation if Redis is unavailable
     }
   }
 
   async blacklistToken(token: string, expiresIn: number): Promise<void> {
-    const blacklistKey = `${this.TOKEN_BLACKLIST_PREFIX}${token}`;
-    await this.redisClient.set(blacklistKey, '1', 'EX', expiresIn);
-  }
+    try {
+      if (!token || token.trim() === '') {
+        this.logger.warn('Attempted to blacklist empty token');
+        return;
+      }
 
-  // Trong token.service.ts
+      if (expiresIn <= 0) {
+        this.logger.debug('Token already expired, no need to blacklist');
+        return;
+      }
+
+      const blacklistKey = this.getTokenKey(token);
+      this.logger.debug(
+        `Blacklisting token: ${blacklistKey} for ${expiresIn} seconds`,
+      );
+
+      await this.redisClient.set(blacklistKey, '1', 'EX', expiresIn);
+      this.logger.debug('Token blacklisted successfully');
+    } catch (error) {
+      this.logger.error(
+        `Error blacklisting token: ${error.message}`,
+        error.stack,
+      );
+    }
+  }
   async introspect(token: string): Promise<TokenIntrospectResult> {
     try {
       // Kiểm tra blacklist
       const isBlacklisted = await this.isTokenBlacklisted(token);
       if (isBlacklisted) {
+        this.logger.debug('Token introspection failed: token is blacklisted');
         return {
           payload: null,
           error: new Error('Token đã bị vô hiệu hóa'),
@@ -123,13 +152,57 @@ export class TokenService implements ITokenService {
 
       // Verify token
       const payload = await this.jwtService.verifyAsync<TokenPayload>(token);
+      this.logger.debug(
+        `Token introspection successful for user: ${payload.sub}`,
+      );
       return { payload, isOk: true };
     } catch (error) {
+      this.logger.error(`Token introspection error: ${error.message}`);
       return {
         payload: null,
         error,
         isOk: false,
       };
     }
+  }
+
+  // In token.service.ts
+  async trackUserSession(userId: string, token: string): Promise<void> {
+    const sessionKey = `user:sessions:${userId}`;
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+
+    // Add this token to the user's active sessions
+    await this.redisClient.sadd(sessionKey, tokenHash);
+
+    // Set expiry based on token expiration
+    const expiresIn = this.getExpirationTime(token);
+    if (expiresIn > 0) {
+      await this.redisClient.expire(sessionKey, expiresIn);
+    }
+  }
+
+  async isValidUserSession(userId: string, token: string): Promise<boolean> {
+    const sessionKey = `user:sessions:${userId}`;
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+
+    // Check if this token is in the user's active sessions
+    const isMember = await this.redisClient.sismember(sessionKey, tokenHash);
+    return isMember === 1;
+  }
+
+  async invalidateAllUserSessions(userId: string): Promise<void> {
+    const sessionKey = `user:sessions:${userId}`;
+
+    // Get all session tokens
+    const sessions = await this.redisClient.smembers(sessionKey);
+
+    // Blacklist each token
+    for (const tokenHash of sessions) {
+      const blacklistKey = `${this.TOKEN_BLACKLIST_PREFIX}${tokenHash}`;
+      await this.redisClient.set(blacklistKey, '1', 'EX', 86400); // 24 hours
+    }
+
+    // Remove the session tracking
+    await this.redisClient.del(sessionKey);
   }
 }

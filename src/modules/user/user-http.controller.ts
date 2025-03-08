@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Inject,
+  Logger,
   Param,
   Patch,
   Post,
@@ -44,6 +45,7 @@ import { ITokenService, IUserRepository, IUserService } from './user.port';
 
 @Controller()
 export class UserHttpController {
+  private readonly logger = new Logger(UserHttpController.name);
   constructor(
     @Inject(USER_SERVICE) private readonly userService: IUserService,
     @Inject(TOKEN_SERVICE) private readonly tokenService: ITokenService,
@@ -95,23 +97,42 @@ export class UserHttpController {
     @Request() req: ReqWithRequester,
     @Res({ passthrough: true }) res: ExpressResponse,
   ) {
-    // Get token from request
-    const token =
-      req.cookies?.accessToken || req.headers.authorization?.split(' ')[1];
+    // Extract all possible tokens
+    const cookieToken = req.cookies?.accessToken;
+    const headerToken = req.headers.authorization?.split(' ')[1];
 
-    if (token) {
-      // Invalidate token
-      await this.userService.logout(token);
+    this.logger.debug(
+      `Logout - Cookie token exists: ${!!cookieToken}, Auth header exists: ${!!headerToken}`,
+    );
+
+    // Log out and invalidate all available tokens
+    if (cookieToken) {
+      await this.userService.logout(cookieToken);
     }
 
-    // Clear cookie
+    if (headerToken && headerToken !== cookieToken) {
+      await this.userService.logout(headerToken);
+    }
+
+    // Clear cookies
     res.clearCookie('accessToken', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     });
 
-    return { success: true };
+    // For better security, tell browsers to clear Authorization header
+    // Note: This doesn't affect existing stored tokens in clients
+    res.setHeader('Clear-Site-Data', '"cookies", "storage"');
+
+    return { success: true, message: 'Đăng xuất thành công' };
+  }
+  catch(error: unknown) {
+    // Add the explicit 'unknown' type here
+    this.logger.error(
+      `Error during logout: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return { success: true, message: 'Đăng xuất thành công' }; // Still return success
   }
 
   @Post('auth/refresh')

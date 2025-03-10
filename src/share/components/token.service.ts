@@ -97,10 +97,6 @@ export class TokenService implements ITokenService {
       const exists = await this.redisClient.exists(blacklistKey);
       const isBlacklisted = exists === 1;
 
-      this.logger.debug(
-        `Token blacklist check result: ${isBlacklisted ? 'blacklisted' : 'valid'}`,
-      );
-
       return isBlacklisted;
     } catch (error) {
       this.logger.error(
@@ -124,10 +120,6 @@ export class TokenService implements ITokenService {
       }
 
       const blacklistKey = this.getTokenKey(token);
-      this.logger.debug(
-        `Blacklisting token: ${blacklistKey} for ${expiresIn} seconds`,
-      );
-
       await this.redisClient.set(blacklistKey, '1', 'EX', expiresIn);
       this.logger.debug('Token blacklisted successfully');
     } catch (error) {
@@ -142,7 +134,6 @@ export class TokenService implements ITokenService {
       // Kiểm tra blacklist
       const isBlacklisted = await this.isTokenBlacklisted(token);
       if (isBlacklisted) {
-        this.logger.debug('Token introspection failed: token is blacklisted');
         return {
           payload: null,
           error: new Error('Token đã bị vô hiệu hóa'),
@@ -152,9 +143,7 @@ export class TokenService implements ITokenService {
 
       // Verify token
       const payload = await this.jwtService.verifyAsync<TokenPayload>(token);
-      this.logger.debug(
-        `Token introspection successful for user: ${payload.sub}`,
-      );
+
       return { payload, isOk: true };
     } catch (error) {
       this.logger.error(`Token introspection error: ${error.message}`);

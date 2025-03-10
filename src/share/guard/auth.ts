@@ -31,7 +31,6 @@ export class RemoteAuthGuard implements CanActivate {
       const isBlacklisted = await this.introspector.isTokenBlacklisted(token);
 
       if (isBlacklisted) {
-        this.logger.debug('Token is blacklisted, rejecting request');
         // Help the client by clearing any cookies
         response.clearCookie('accessToken', {
           httpOnly: true,
@@ -49,7 +48,6 @@ export class RemoteAuthGuard implements CanActivate {
 
       if (!isOk || !payload) {
         const errorMsg = error?.message || 'Invalid token';
-        this.logger.debug(`Token introspection failed: ${errorMsg}`);
         throw new UnauthorizedException('Token không hợp lệ hoặc đã hết hạn');
       }
 
@@ -72,12 +70,6 @@ function extractTokenFromRequest(request: Request): string | undefined {
   const headerToken = authHeader?.startsWith('Bearer ')
     ? authHeader.substring(7)
     : undefined;
-
-  // Log all token sources for debugging
-  const logger = new Logger('TokenExtractor');
-  logger.debug(
-    `Token sources - Cookie: ${!!cookieToken}, Auth header: ${!!headerToken}`,
-  );
 
   // Return the first available token
   return cookieToken || headerToken;

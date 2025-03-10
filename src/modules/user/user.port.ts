@@ -28,7 +28,12 @@ export interface ITokenService {
 export interface IUserService {
   // Authentication
   register(dto: UserRegistrationDTO): Promise<string>;
-  login(dto: UserLoginDTO): Promise<{ token: string; expiresIn: number }>;
+  login(
+    dto: UserLoginDTO,
+  ): Promise<{
+    token: string; expiresIn: number; 
+    requiredResetPassword: boolean;
+   }>;
   logout(token: string): Promise<void>;
   introspectToken(token: string): Promise<TokenPayload>;
   refreshToken(token: string): Promise<{ token: string; expiresIn: number }>;
@@ -46,7 +51,7 @@ export interface IUserService {
   changePassword(userId: string, dto: ChangePasswordDTO): Promise<void>;
   requestPasswordReset(
     dto: RequestPasswordResetDTO,
-  ): Promise<{ resetToken: string; expiryDate: Date }>;
+  ): Promise<{ resetToken: string; expiryDate: Date; username: string }>;
   resetPassword(dto: UserResetPasswordDTO): Promise<void>;
 
   // Role management

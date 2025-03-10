@@ -70,7 +70,7 @@ export class UserHttpController {
     @Res({ passthrough: true }) res: ExpressResponse,
     @Body() dto: UserLoginDTO,
   ) {
-    const { token, expiresIn } = await this.userService.login(dto);
+    const { token, expiresIn, requiredResetPassword } = await this.userService.login(dto);
 
     // Set HTTP-only cookie with the token
     res.cookie('accessToken', token, {
@@ -86,6 +86,7 @@ export class UserHttpController {
       data: {
         token,
         expiresIn,
+        requiredResetPassword
       },
     };
   }
@@ -176,7 +177,7 @@ export class UserHttpController {
   @Post('auth/request-password-reset')
   @HttpCode(HttpStatus.OK)
   async requestPasswordReset(@Body() dto: RequestPasswordResetDTO) {
-    const { resetToken, expiryDate } =
+    const { resetToken, expiryDate, username } =
       await this.userService.requestPasswordReset(dto);
 
     // In production, you would send this token via email
@@ -186,6 +187,7 @@ export class UserHttpController {
       data: {
         resetToken,
         expiryDate,
+        username,
         // Message to guide user in production
         message: 'Mã xác thực đặt lại mật khẩu đã được gửi đến email của bạn.',
       },

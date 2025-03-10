@@ -24,7 +24,6 @@ class MockRedisClient {
 
   // Các phương thức Redis cơ bản
   async get(key: string): Promise<string | null> {
-    this.logger.debug(`Mock Redis GET: ${key}`);
     return this.cache.get(key) || null;
   }
 
@@ -40,7 +39,6 @@ class MockRedisClient {
       }
     });
 
-    this.logger.debug(`Cleaned ${cleaned} expired keys from mock Redis`);
     return cleaned;
   }
 
@@ -51,7 +49,6 @@ class MockRedisClient {
     mode?: string,
     duration?: number,
   ): Promise<'OK'> {
-    this.logger.debug(`Mock Redis SET: ${key} ${mode || ''} ${duration || ''}`);
 
     // Clean expired keys first
     await this.cleanExpiredKeys();
@@ -65,16 +62,12 @@ class MockRedisClient {
 
     // Debug check
     const entry = MockRedisClient.mockStore.get(key);
-    this.logger.debug(
-      `Stored key ${key} with value ${entry?.value} and expiry ${entry?.expiry}`,
-    );
 
     return 'OK';
   }
 
   // Override exists to ensure blacklist checks work
   async exists(key: string): Promise<number> {
-    this.logger.debug(`Mock Redis EXISTS: ${key}`);
 
     // Clean expired keys first
     await this.cleanExpiredKeys();

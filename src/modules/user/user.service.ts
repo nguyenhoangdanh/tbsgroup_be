@@ -107,9 +107,11 @@ export class UserService implements IUserService {
     }
   }
 
-  async login(
-    dto: UserLoginDTO,
-  ): Promise<{ token: string; expiresIn: number }> {
+  async login(dto: UserLoginDTO): Promise<{
+    token: string;
+    expiresIn: number;
+    requiredResetPassword: boolean;
+  }> {
     try {
       // Find user by username
       const user = await this.userRepo.findByUsername(dto.username);
@@ -169,7 +171,11 @@ export class UserService implements IUserService {
       // Log successful login
       this.logger.log(`User logged in: ${user.username} (${user.id})`);
 
-      return { token, expiresIn: expirationTime };
+      return {
+        token,
+        expiresIn: expirationTime,
+        requiredResetPassword: user.status === UserStatus.PENDING_ACTIVATION,
+      };
     } catch (error) {
       // Log error details
       this.logger.error(`Login error: ${error.message}`, error.stack);
@@ -464,7 +470,7 @@ export class UserService implements IUserService {
 
   async requestPasswordReset(
     dto: RequestPasswordResetDTO,
-  ): Promise<{ resetToken: string; expiryDate: Date }> {
+  ): Promise<{ resetToken: string; expiryDate: Date; username: string }> {
     let user: User | null = null;
 
     // Find user based on provided credentials
@@ -496,7 +502,7 @@ export class UserService implements IUserService {
 
     this.logger.log(`Password reset requested for user: ${user.id}`);
 
-    return { resetToken, expiryDate };
+    return { resetToken, expiryDate, username: user.username };
   }
 
   async resetPassword(dto: UserResetPasswordDTO): Promise<void> {

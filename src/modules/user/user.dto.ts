@@ -27,6 +27,9 @@ export const userRegistrationDTOSchema = userSchema
     email: true,
     phone: true,
   })
+  .extend({
+    defaultRoleCode: z.nativeEnum(UserRole).default(UserRole.WORKER),
+  })
   .required({
     username: true,
     password: true,
@@ -53,12 +56,15 @@ export const userUpdateDTOSchema = userSchema
     email: true,
     phone: true,
     status: true,
-    role: true,
     factoryId: true,
     lineId: true,
     teamId: true,
     groupId: true,
     positionId: true,
+    roleId: true,
+  })
+  .extend({
+    defaultRoleId: z.string().uuid().optional(),
   })
   .partial();
 
@@ -109,13 +115,16 @@ export const userCondDTOSchema = userSchema
   .pick({
     fullName: true,
     username: true,
-    role: true,
     status: true,
     factoryId: true,
     lineId: true,
     teamId: true,
     groupId: true,
     positionId: true,
+  })
+  .extend({
+    roleId: z.string().uuid().optional(),
+    roleCode: z.string().optional(),
   })
   .partial();
 
@@ -144,7 +153,7 @@ export type RequestPasswordResetDTO = z.infer<
 
 // DTO cho gán vai trò
 export const userRoleAssignmentDTOSchema = z.object({
-  role: z.nativeEnum(UserRole),
+  roleId: z.string().uuid(),
   scope: z.string().optional(),
   expiryDate: z.date().optional(), // Ngày hết hạn của vai trò (nếu là tạm thời)
 });

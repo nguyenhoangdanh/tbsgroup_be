@@ -19,16 +19,19 @@ export class EntityAccessService {
     if (manager) return true;
 
     // Kiểm tra theo vai trò FACTORY_MANAGER, ADMIN, SUPER_ADMIN
+    // Example fixed code
     const userRole = await this.prisma.userRoleAssignment.findFirst({
       where: {
         userId,
         OR: [
           {
-            role: 'FACTORY_MANAGER',
+            role: {
+              code: 'FACTORY_MANAGER',
+            },
             scope: `factory:${factoryId}`,
           },
-          { role: 'ADMIN' },
-          { role: 'SUPER_ADMIN' },
+          { role: { code: 'ADMIN' } },
+          { role: { code: 'SUPER_ADMIN' } },
         ],
       },
     });

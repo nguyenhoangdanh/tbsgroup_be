@@ -52,7 +52,10 @@ export class RemoteAuthGuard implements CanActivate {
       }
 
       // Set user info in request
-      request['requester'] = payload;
+      request['requester'] = {
+        sub: payload.sub,
+        role: payload.role,
+      };
       return true;
     } catch (error) {
       if (error instanceof UnauthorizedException) {

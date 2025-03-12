@@ -7,7 +7,7 @@ import {
   TokenPayload,
   UserRole,
 } from 'src/share';
-import { v7 } from 'uuid';
+import { v4 } from 'uuid';
 import { TOKEN_SERVICE, USER_REPOSITORY } from './user.di-token';
 import {
   ChangePasswordDTO,
@@ -34,6 +34,8 @@ import {
   UserStatus,
 } from './user.model';
 import { ITokenService, IUserRepository, IUserService } from './user.port';
+import { ROLE_SERVICE } from '../role/role.di-token';
+import { IRoleService } from '../role/role.port';
 
 @Injectable()
 export class UserService implements IUserService {
@@ -42,6 +44,7 @@ export class UserService implements IUserService {
   constructor(
     @Inject(USER_REPOSITORY) private readonly userRepo: IUserRepository,
     @Inject(TOKEN_SERVICE) private readonly tokenService: ITokenService,
+    @Inject(ROLE_SERVICE) private readonly roleService: IRoleService,
   ) {}
 
   // Authentication methods
@@ -58,7 +61,20 @@ export class UserService implements IUserService {
       const hashPassword = await bcrypt.hash(`${dto.password}.${salt}`, 12);
 
       // Generate new user ID
-      const newId = v7();
+      const newId = v4();
+
+      // Lấy defaultRoleId từ code vai trò
+      let defaultRoleId: string;
+      if (dto.defaultRoleCode) {
+        const role = await this.roleService.getRoleByCode(dto.defaultRoleCode);
+        defaultRoleId = role.id;
+      } else {
+        // Nếu không có defaultRoleCode, lấy ID của vai trò WORKER
+        const defaultRole = await this.roleService.getRoleByCode(
+          UserRole.WORKER,
+        );
+        defaultRoleId = defaultRole.id;
+      }
 
       // Create new user object
       const newUser: User = {
@@ -68,7 +84,7 @@ export class UserService implements IUserService {
         id: newId,
         status: UserStatus.PENDING_ACTIVATION,
         salt: salt,
-        role: UserRole.WORKER, // Default role
+        roleId: defaultRoleId, // Sử dụng defaultRoleId thay vì role
         createdAt: new Date(),
         updatedAt: new Date(),
         fullName: dto.fullName,
@@ -142,6 +158,7 @@ export class UserService implements IUserService {
       // Create token payload
       const tokenPayload: TokenPayload = {
         sub: user.id,
+        roleId: user.roleId,
         role: user.role,
         factoryId: user.factoryId || undefined,
         lineId: user.lineId || undefined,
@@ -159,14 +176,10 @@ export class UserService implements IUserService {
       const expirationTime = this.tokenService.getExpirationTime(token);
 
       // Update user's last login timestamp
-      // await this.userRepo.update(user.id, {
-      //   lastLogin: new Date(),
-      //   // If user is in PENDING_ACTIVATION, auto-activate on first login
-      //   status:
-      //     user.status === UserStatus.PENDING_ACTIVATION
-      //       ? UserStatus.ACTIVE
-      //       : user.status,
-      // });
+      await this.userRepo.update(user.id, {
+        lastLogin: new Date(),
+        // If user is in PENDING_ACTIVATION, auto-activate on first login
+      });
 
       // Log successful login
       this.logger.log(`User logged in: ${user.username} (${user.id})`);
@@ -192,7 +205,6 @@ export class UserService implements IUserService {
     }
   }
 
-  // In user.service.ts
   async logout(token: string): Promise<void> {
     try {
       if (!token) {
@@ -261,7 +273,7 @@ export class UserService implements IUserService {
 
     return {
       sub: user.id,
-      role: user.role,
+      roleId: user.roleId,
       factoryId: user.factoryId || undefined,
       lineId: user.lineId || undefined,
       teamId: user.teamId || undefined,
@@ -293,7 +305,7 @@ export class UserService implements IUserService {
     // Create a new token with the same payload but new expiration
     const newToken = await this.tokenService.generateToken({
       sub: user.id,
-      role: user.role,
+      roleId: user.roleId,
       factoryId: user.factoryId || undefined,
       lineId: user.lineId || undefined,
       teamId: user.teamId || undefined,
@@ -312,19 +324,6 @@ export class UserService implements IUserService {
     return { token: newToken, expiresIn };
   }
 
-  // // Profile management methods
-  // async profile(userId: string): Promise<Omit<User, 'password' | 'salt'>> {
-  //   const user = await this.userRepo.get(userId);
-  //   if (!user) {
-  //     throw AppError.from(ErrNotFound, 404);
-  //   }
-
-  //   // Exclude sensitive information
-  //   const { password, salt, ...userInfo } = user;
-  //   return userInfo;
-  // }
-
-  // In user.service.ts
   async profile(userId: string): Promise<Omit<User, 'password' | 'salt'>> {
     try {
       const user = await this.userRepo.get(userId);
@@ -382,7 +381,7 @@ export class UserService implements IUserService {
       }
 
       // Non-admins cannot change status or role
-      if (dto.status !== undefined || dto.role !== undefined) {
+      if (dto.status !== undefined || dto.roleId !== undefined) {
         throw AppError.from(ErrPermissionDenied, 403);
       }
     }
@@ -587,7 +586,7 @@ export class UserService implements IUserService {
     // Check if user already has this role with the same scope
     const existingRoles = await this.userRepo.getUserRoles(userId);
     const duplicateRole = existingRoles.find(
-      (r) => r.role === dto.role && r.scope === dto.scope,
+      (r) => r.roleId === dto.roleId && r.scope === dto.scope,
     );
 
     if (duplicateRole) {
@@ -595,17 +594,22 @@ export class UserService implements IUserService {
     }
 
     // Assign the role
-    await this.userRepo.assignRole(userId, dto.role, dto.scope, dto.expiryDate);
+    await this.userRepo.assignRole(
+      userId,
+      dto.roleId,
+      dto.scope,
+      dto.expiryDate,
+    );
 
     this.logger.log(
-      `Role ${dto.role} assigned to user ${userId} by ${requester.sub}`,
+      `Role ${dto.roleId} assigned to user ${userId} by ${requester.sub}`,
     );
   }
 
   async removeRole(
     requester: Requester,
     userId: string,
-    role: UserRole,
+    roleId: string,
     scope?: string,
   ): Promise<void> {
     // Check if user exists
@@ -623,16 +627,18 @@ export class UserService implements IUserService {
     }
 
     // Remove the role
-    await this.userRepo.removeRole(userId, role, scope);
+    await this.userRepo.removeRole(userId, roleId, scope);
 
     this.logger.log(
-      `Role ${role} removed from user ${userId} by ${requester.sub}`,
+      `Role ${roleId} removed from user ${userId} by ${requester.sub}`,
     );
   }
 
   async getUserRoles(
     userId: string,
-  ): Promise<{ role: UserRole; scope?: string; expiryDate?: Date }[]> {
+  ): Promise<
+    { roleId: string; role: UserRole; scope?: string; expiryDate?: Date }[]
+  > {
     // Check if user exists
     const user = await this.userRepo.get(userId);
     if (!user) {
@@ -643,9 +649,17 @@ export class UserService implements IUserService {
     const roles = await this.userRepo.getUserRoles(userId);
 
     // Include default role if not already included
-    const hasDefaultRole = roles.some((r) => r.role === user.role && !r.scope);
-    if (!hasDefaultRole) {
-      roles.push({ role: user.role });
+    const hasDefaultRole = roles.some(
+      (r) => r.roleId === user.roleId && !r.scope,
+    );
+    if (!hasDefaultRole && user.roleId) {
+      // Thêm vai trò mặc định nếu chưa có trong danh sách
+      const userRole = await this.roleService.getRole(user.roleId);
+      roles.push({
+        roleId: user.roleId,
+        role: userRole.code as UserRole,
+        scope: undefined,
+      });
     }
 
     return roles;
@@ -663,8 +677,15 @@ export class UserService implements IUserService {
       return false;
     }
 
+    // Get user roles
+    const userRoles = await this.userRepo.getUserRoles(userId);
+    const roles = userRoles.map((r) => r.role);
+
     // ADMIN and SUPER_ADMIN have full access
-    if (user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN) {
+    if (
+      roles.includes(UserRole.ADMIN) ||
+      roles.includes(UserRole.SUPER_ADMIN)
+    ) {
       return true;
     }
 

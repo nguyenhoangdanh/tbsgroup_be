@@ -2,6 +2,7 @@ import { Module, Global, Provider, Logger } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import Redis, { RedisOptions } from 'ioredis';
 import {
+  REDIS_CACHE_SERVICE,
   REDIS_CLIENT,
   REDIS_HEALTH_SERVICE,
   REDIS_PUBLISHER,
@@ -9,6 +10,7 @@ import {
 } from './redis.constants';
 import { RedisHealthService } from './redis-health.service';
 import { RedisPublisher } from './redis-publisher.service';
+import { RedisCacheService } from './redis-cache.service';
 
 // Mock Redis Client cho môi trường dev
 class MockRedisClient {
@@ -343,16 +345,25 @@ const redisPublisherProvider: Provider = {
   useClass: RedisPublisher,
 };
 
+const services: Provider[] = [
+  {
+    provide: REDIS_CACHE_SERVICE,
+    useClass: RedisCacheService,
+  }
+]
+
 @Global()
 @Module({
   imports: [ConfigModule],
   providers: [
+    ...services,
     redisProvider,
     redisSubscriberFactoryProvider,
     redisHealthProvider,
     redisPublisherProvider,
   ],
   exports: [
+    REDIS_CACHE_SERVICE,
     REDIS_CLIENT,
     REDIS_SUBSCRIBER_FACTORY,
     REDIS_HEALTH_SERVICE,

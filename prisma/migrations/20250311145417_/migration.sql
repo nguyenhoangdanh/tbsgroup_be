@@ -1,7 +1,4 @@
 -- CreateEnum
-CREATE TYPE "UserRole" AS ENUM ('WORKER', 'GROUP_LEADER', 'TEAM_LEADER', 'LINE_MANAGER', 'FACTORY_MANAGER', 'ADMIN', 'SUPER_ADMIN');
-
--- CreateEnum
 CREATE TYPE "UserStatus" AS ENUM ('PENDING_ACTIVATION', 'ACTIVE', 'INACTIVE', 'BANNED', 'DELETED');
 
 -- CreateEnum
@@ -38,7 +35,7 @@ CREATE TABLE "users" (
     "email" VARCHAR(100),
     "phone" VARCHAR(20),
     "status" "UserStatus" NOT NULL DEFAULT 'PENDING_ACTIVATION',
-    "role" "UserRole" NOT NULL DEFAULT 'WORKER',
+    "default_role_id" UUID,
     "factory_id" UUID,
     "line_id" UUID,
     "team_id" UUID,
@@ -57,12 +54,26 @@ CREATE TABLE "users" (
 CREATE TABLE "user_role_assignments" (
     "id" UUID NOT NULL,
     "user_id" UUID NOT NULL,
-    "role" "UserRole" NOT NULL,
+    "role_id" UUID NOT NULL,
     "scope" VARCHAR(50),
     "created_at" TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(0) NOT NULL,
 
     CONSTRAINT "user_role_assignments_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "roles" (
+    "id" UUID NOT NULL,
+    "code" VARCHAR(50) NOT NULL,
+    "name" VARCHAR(100) NOT NULL,
+    "description" VARCHAR(255),
+    "level" INTEGER NOT NULL DEFAULT 0,
+    "is_system" BOOLEAN NOT NULL DEFAULT false,
+    "created_at" TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(0) NOT NULL,
+
+    CONSTRAINT "roles_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -173,7 +184,7 @@ CREATE TABLE "departments" (
 CREATE TABLE "user_departments" (
     "user_id" UUID NOT NULL,
     "department_id" UUID NOT NULL,
-    "role" "UserRole" NOT NULL,
+    "role_id" UUID NOT NULL,
     "created_at" TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(0) NOT NULL,
 
@@ -471,7 +482,7 @@ CREATE TABLE "approval_workflow_steps" (
     "workflow_id" UUID NOT NULL,
     "step_order" INTEGER NOT NULL,
     "approver_type" VARCHAR(50) NOT NULL,
-    "approver_role_id" VARCHAR(50),
+    "approver_role_id" UUID,
     "approver_user_id" UUID,
     "is_required" BOOLEAN NOT NULL DEFAULT true,
     "notify_on_start" BOOLEAN NOT NULL DEFAULT true,
@@ -628,10 +639,16 @@ CREATE INDEX "idx_user_position_id" ON "users"("position_id");
 CREATE INDEX "idx_user_role_assignment_user" ON "user_role_assignments"("user_id");
 
 -- CreateIndex
-CREATE INDEX "idx_user_role_assignment_role" ON "user_role_assignments"("role");
+CREATE INDEX "idx_user_role_assignment_role" ON "user_role_assignments"("role_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "unique_user_role_scope" ON "user_role_assignments"("user_id", "role", "scope");
+CREATE UNIQUE INDEX "unique_user_role_scope" ON "user_role_assignments"("user_id", "role_id", "scope");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "roles_code_key" ON "roles"("code");
+
+-- CreateIndex
+CREATE INDEX "idx_role_level" ON "roles"("level");
 
 -- CreateIndex
 CREATE INDEX "idx_factory_manager_factory" ON "factory_managers"("factory_id");
@@ -871,6 +888,9 @@ CREATE INDEX "idx_report_type" ON "reports"("report_type");
 CREATE INDEX "idx_report_active" ON "reports"("is_active");
 
 -- AddForeignKey
+ALTER TABLE "users" ADD CONSTRAINT "users_default_role_id_fkey" FOREIGN KEY ("default_role_id") REFERENCES "roles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "users" ADD CONSTRAINT "users_factory_id_fkey" FOREIGN KEY ("factory_id") REFERENCES "factories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -887,6 +907,9 @@ ALTER TABLE "users" ADD CONSTRAINT "users_position_id_fkey" FOREIGN KEY ("positi
 
 -- AddForeignKey
 ALTER TABLE "user_role_assignments" ADD CONSTRAINT "user_role_assignments_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_role_assignments" ADD CONSTRAINT "user_role_assignments_role_id_fkey" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "factory_managers" ADD CONSTRAINT "factory_managers_factory_id_fkey" FOREIGN KEY ("factory_id") REFERENCES "factories"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -923,6 +946,9 @@ ALTER TABLE "user_departments" ADD CONSTRAINT "user_departments_user_id_fkey" FO
 
 -- AddForeignKey
 ALTER TABLE "user_departments" ADD CONSTRAINT "user_departments_department_id_fkey" FOREIGN KEY ("department_id") REFERENCES "departments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_departments" ADD CONSTRAINT "user_departments_role_id_fkey" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "factories" ADD CONSTRAINT "factories_department_id_fkey" FOREIGN KEY ("department_id") REFERENCES "departments"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -1010,6 +1036,9 @@ ALTER TABLE "production_form_entries" ADD CONSTRAINT "production_form_entries_pr
 
 -- AddForeignKey
 ALTER TABLE "approval_workflow_steps" ADD CONSTRAINT "approval_workflow_steps_workflow_id_fkey" FOREIGN KEY ("workflow_id") REFERENCES "approval_workflows"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "approval_workflow_steps" ADD CONSTRAINT "approval_workflow_steps_approver_role_id_fkey" FOREIGN KEY ("approver_role_id") REFERENCES "roles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "digital_signatures" ADD CONSTRAINT "digital_signatures_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

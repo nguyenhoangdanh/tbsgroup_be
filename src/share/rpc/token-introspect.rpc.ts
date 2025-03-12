@@ -11,9 +11,29 @@ export class TokenIntrospectRPCClient implements ITokenIntrospect {
   async introspect(token: string): Promise<TokenIntrospectResult> {
     try {
       const { data } = await axios.post(`${this.url}`, { token });
-      const { sub, role } = data.data;
+      const { sub, role, roleId } = data.data;
+      // Decode JWT token để lấy role nếu service không trả về
+      let extractedRole = role;
+      if (!extractedRole && token) {
+        try {
+          const parts = token.split('.');
+          if (parts.length === 3) {
+            const payload = JSON.parse(
+              Buffer.from(parts[1], 'base64').toString('utf8'),
+            );
+            extractedRole = payload.role;
+          }
+        } catch (e) {
+          console.error('Error extracting role from token:', e);
+        }
+      }
+
       return {
-        payload: { sub, role },
+        payload: {
+          sub,
+          role: extractedRole, // Sử dụng role từ token nếu service không trả về
+          roleId,
+        },
         isOk: true,
       };
     } catch (error) {

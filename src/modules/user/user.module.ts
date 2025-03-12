@@ -12,9 +12,13 @@ import { TOKEN_SERVICE, USER_REPOSITORY, USER_SERVICE } from './user.di-token';
 import { UserService } from './user.service';
 import { TokenService } from 'src/share/components/token.service';
 import { RedisModule } from 'src/common/redis';
+import { ROLE_REPOSITORY, ROLE_SERVICE } from '../role/role.di-token';
+import { RoleService } from '../role/role.service';
+import { RolePrismaRepository } from '../role/role-prisma.repo';
 
 const repositories: Provider[] = [
   { provide: USER_REPOSITORY, useClass: UserPrismaRepository },
+  { provide: ROLE_REPOSITORY, useClass: RolePrismaRepository },
 ];
 
 const services: Provider[] = [
@@ -22,6 +26,7 @@ const services: Provider[] = [
   { provide: TOKEN_SERVICE, useClass: TokenService },
   // Quan trọng: Cung cấp TOKEN_INTROSPECTOR sử dụng cùng instance với TOKEN_SERVICE
   { provide: TOKEN_INTROSPECTOR, useExisting: TOKEN_SERVICE },
+  { provide: ROLE_SERVICE, useClass: RoleService },
 ];
 
 @Module({

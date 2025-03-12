@@ -65,10 +65,11 @@ export const userSchema = z.object({
     .min(6, ErrPasswordAtLeast6Chars.message)
     .regex(/^\S*$/, { message: 'Mật khẩu không được chứa khoảng trắng' }),
   salt: z.string().min(8),
-  role: z.nativeEnum(UserRole),
+  roleId: z.string().uuid(),
   status: z.nativeEnum(UserStatus).optional(),
   email: z.string().email('Email không hợp lệ').nullable().optional(),
   phone: z.string().nullable().optional(),
+  role: z.nativeEnum(UserRole).optional(),
 
   // Các trường liên kết với cấu trúc tổ chức
   factoryId: z.string().uuid().nullable().optional(),

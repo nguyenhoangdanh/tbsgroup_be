@@ -20,7 +20,19 @@ export class RolesGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const requester = request['requester'] as Requester;
 
-    // Lưu ý: SUPER_ADMIN luôn có quyền truy cập mọi endpoint
+    // Better error handling for missing requester
+    if (!requester) {
+      console.error('No requester found in request. Check auth middleware.');
+      return false;
+    }
+
+    // Handle case where role is undefined
+    if (requester.role === undefined) {
+      console.error('User role is undefined. Check token payload extraction.');
+      return false;
+    }
+
+    // Now check permissions
     if (requester.role === UserRole.SUPER_ADMIN) {
       return true;
     }

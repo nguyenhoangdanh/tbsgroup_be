@@ -70,7 +70,8 @@ export class UserHttpController {
     @Res({ passthrough: true }) res: ExpressResponse,
     @Body() dto: UserLoginDTO,
   ) {
-    const { token, expiresIn, requiredResetPassword } = await this.userService.login(dto);
+    const { token, expiresIn, requiredResetPassword } =
+      await this.userService.login(dto);
 
     // Set HTTP-only cookie with the token
     res.cookie('accessToken', token, {
@@ -86,7 +87,7 @@ export class UserHttpController {
       data: {
         token,
         expiresIn,
-        requiredResetPassword
+        requiredResetPassword,
       },
     };
   }
@@ -252,10 +253,17 @@ export class UserHttpController {
     @Query() conditions: UserCondDTO,
     @Query() pagination: PaginationDTO,
   ) {
+    // Ensure pagination has default values
+    const validatedPagination: PaginationDTO = {
+      page: pagination.page || 1,
+      limit: pagination.limit || 10,
+      sortBy: pagination.sortBy || 'createdAt',
+      sortOrder: pagination.sortOrder || 'desc',
+    };
     const result = await this.userService.listUsers(
       req.requester,
       conditions,
-      pagination,
+      validatedPagination,
     );
     return { success: true, ...result };
   }
@@ -332,17 +340,17 @@ export class UserHttpController {
     return { success: true };
   }
 
-  @Delete('users/:id/roles/:role')
+  @Delete('users/:id/roles/:roleId')
   @UseGuards(RemoteAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @HttpCode(HttpStatus.OK)
   async removeRole(
     @Request() req: ReqWithRequester,
     @Param('id') id: string,
-    @Param('role') role: UserRole,
+    @Param('roleId') roleId: string,
     @Body() body: { scope?: string },
   ) {
-    await this.userService.removeRole(req.requester, id, role, body.scope);
+    await this.userService.removeRole(req.requester, id, roleId, body.scope);
     return { success: true };
   }
 

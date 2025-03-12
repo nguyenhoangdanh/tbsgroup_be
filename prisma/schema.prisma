@@ -1,6 +1,6 @@
 // Tối ưu database schema cho hệ thống quản lý chấm công và sản xuất
 // Đã tinh chỉnh mối quan hệ và cải thiện hiệu suất
-
+/// @seed("prisma/seed.ts")
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "debian-openssl-3.0.x"]
@@ -9,18 +9,6 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-}
-
-// ==================== ENUMS ====================
-
-enum UserRole {
-  WORKER
-  GROUP_LEADER
-  TEAM_LEADER
-  LINE_MANAGER
-  FACTORY_MANAGER
-  ADMIN
-  SUPER_ADMIN
 }
 
 enum UserStatus {
@@ -100,7 +88,9 @@ model User {
   email      String?    @unique @map("email") @db.VarChar(100)
   phone      String?    @map("phone") @db.VarChar(20)
   status     UserStatus @default(PENDING_ACTIVATION) @map("status")
-  role       UserRole   @default(WORKER) @map("role") // Role mặc định để tương thích
+
+  roleId String? @map("role_id") @db.Uuid // Vai trò mặc định
+  role   Role?   @relation(fields: [roleId], references: [id], onDelete: SetNull)
 
   // Quan hệ trực tiếp với cấu trúc sản xuất
   factoryId  String? @map("factory_id") @db.Uuid
@@ -155,21 +145,48 @@ model User {
   @@map("users")
 }
 
-// Bảng quan hệ giữa User và Role
+// Cập nhật bảng UserRoleAssignment
 model UserRoleAssignment {
   id        String   @id @default(uuid()) @map("id") @db.Uuid
   userId    String   @map("user_id") @db.Uuid
-  role      UserRole @map("role")
+  roleId    String   @map("role_id") @db.Uuid // Thay đổi từ role (enum) sang roleId
   scope     String?  @map("scope") @db.VarChar(50) // Phạm vi áp dụng quyền: "factory:123", "line:456"
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade) // Thêm quan hệ với bảng Role mới
 
-  @@unique([userId, role, scope], map: "unique_user_role_scope")
+  expiryDate DateTime? @map("expiry_date") @db.Date // Ngày hết hạn quyền
+
+  @@unique([userId, roleId, scope], map: "unique_user_role_scope")
   @@index([userId], map: "idx_user_role_assignment_user")
-  @@index([role], map: "idx_user_role_assignment_role")
+  @@index([roleId], map: "idx_user_role_assignment_role")
   @@map("user_role_assignments")
+}
+
+// Bảng quản lý vai trò
+model Role {
+  id          String   @id @default(uuid()) @map("id") @db.Uuid
+  code        String   @unique @map("code") @db.VarChar(50) // WORKER, GROUP_LEADER, etc.
+  name        String   @map("name") @db.VarChar(100)
+  description String?  @map("description") @db.VarChar(255)
+  level       Int      @default(0) @map("level") // Cấp độ phân quyền, số càng cao quyền càng lớn
+  isSystem    Boolean  @default(false) @map("is_system") // Vai trò hệ thống không thể xóa
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  // Quan hệ
+  userRoles             UserRoleAssignment[]
+  userDepartmentRoles   UserDepartment[]
+  approvalWorkflowSteps ApprovalWorkflowStep[] // Quan hệ với các bước trong quy trình phê duyệt
+  User                  User[]
+
+  @@index([level], map: "idx_role_level")
+  @@index([name])
+  @@index([level])
+  @@index([isSystem])
+  @@map("roles")
 }
 
 // Bảng quản lý nhà máy
@@ -324,12 +341,13 @@ model Department {
 model UserDepartment {
   userId       String   @map("user_id") @db.Uuid
   departmentId String   @map("department_id") @db.Uuid
-  role         UserRole @map("role")
+  roleId       String   @map("role_id") @db.Uuid // Thay đổi từ role (enum) sang roleId
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(0)
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
 
   user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  Role       Role       @relation(fields: [roleId], references: [id])
 
   @@id([userId, departmentId])
   @@map("user_departments")
@@ -768,7 +786,7 @@ model ApprovalWorkflowStep {
 
   // Cấu hình người phê duyệt
   approverType   String  @map("approver_type") @db.VarChar(50) // ROLE, DIRECT_MANAGER, SPECIFIC_USER,...
-  approverRoleId String? @map("approver_role_id") @db.VarChar(50) // Role nếu approverType là ROLE
+  approverRoleId String? @map("approver_role_id") @db.Uuid // Role nếu approverType là ROLE
   approverUserId String? @map("approver_user_id") @db.Uuid // User ID nếu approverType là SPECIFIC_USER
   isRequired     Boolean @default(true) @map("is_required") // Bước bắt buộc hay không
 
@@ -783,6 +801,7 @@ model ApprovalWorkflowStep {
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
 
   workflow ApprovalWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  role     Role?            @relation(fields: [approverRoleId], references: [id])
 
   @@unique([workflowId, stepOrder], map: "unique_workflow_step")
   @@index([workflowId], map: "idx_approval_step_workflow")

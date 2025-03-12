@@ -10,6 +10,7 @@ import { ConfigModule } from '@nestjs/config';
 import { RedisModule } from './common/redis';
 import { APP_FILTER } from '@nestjs/core';
 import { AppErrorFilter } from './common/exceptions/app-error.filter';
+import { RoleModule } from './modules/role/role.module';
 @Module({
   imports: [
     ServeStaticModule.forRoot({
@@ -25,6 +26,7 @@ import { AppErrorFilter } from './common/exceptions/app-error.filter';
     ShareModule,
     UserModule,
     RedisModule,
+    RoleModule,
     // UploadModule,
   ],
   controllers: [AppController],

@@ -21,19 +21,23 @@ export interface ITokenIntrospect {
 
 export interface ITokenService {
   generateToken(payload: TokenPayload, expiresIn?: string): Promise<string>;
-  // ... các phương thức khác ...
+  generateResetToken(): Promise<string>;
+  verifyToken(token: string): Promise<TokenPayload | null>;
+  decodeToken(token: string): TokenPayload | null;
+  getExpirationTime(token: string): number; // Số giây còn lại trước khi token hết hạn
+  isTokenBlacklisted(token: string): Promise<boolean>;
+  blacklistToken(token: string, expiresIn: number): Promise<void>;
 }
 
 // Interface cho user service
 export interface IUserService {
   // Authentication
   register(dto: UserRegistrationDTO): Promise<string>;
-  login(
-    dto: UserLoginDTO,
-  ): Promise<{
-    token: string; expiresIn: number; 
+  login(dto: UserLoginDTO): Promise<{
+    token: string;
+    expiresIn: number;
     requiredResetPassword: boolean;
-   }>;
+  }>;
   logout(token: string): Promise<void>;
   introspectToken(token: string): Promise<TokenPayload>;
   refreshToken(token: string): Promise<{ token: string; expiresIn: number }>;
@@ -63,13 +67,14 @@ export interface IUserService {
   removeRole(
     requester: Requester,
     userId: string,
-    role: UserRole,
+    roleId: string,
     scope?: string,
   ): Promise<void>;
   getUserRoles(
     userId: string,
-  ): Promise<{ role: UserRole; scope?: string; expiryDate?: Date }[]>;
-
+  ): Promise<
+    { roleId: string; role: UserRole; scope?: string; expiryDate?: Date }[]
+  >;
   // Access control
   canAccessEntity(
     userId: string,
@@ -116,16 +121,18 @@ export interface IUserRepository {
   // Role management
   assignRole(
     userId: string,
-    role: UserRole,
+    roleId: string,
     scope?: string,
     expiryDate?: Date,
   ): Promise<void>;
 
-  removeRole(userId: string, role: UserRole, scope?: string): Promise<void>;
+  removeRole(userId: string, roleId: string, scope?: string): Promise<void>;
 
   getUserRoles(
     userId: string,
-  ): Promise<{ role: UserRole; scope?: string; expiryDate?: Date }[]>;
+  ): Promise<
+    { roleId: string; role: UserRole; scope?: string; expiryDate?: Date }[]
+  >;
 
   // Entity access
   isFactoryManager(userId: string, factoryId: string): Promise<boolean>;
@@ -133,22 +140,11 @@ export interface IUserRepository {
   isTeamLeader(userId: string, teamId: string): Promise<boolean>;
   isGroupLeader(userId: string, groupId: string): Promise<boolean>;
 
-  // Hierarchical access check - mới thêm
+  // Hierarchical access check
   getManagerialAccess(userId: string): Promise<{
     factories: string[];
     lines: string[];
     teams: string[];
     groups: string[];
   }>;
-}
-
-// Interface cho token provider
-export interface ITokenService {
-  generateToken(payload: TokenPayload, expiresIn?: string): Promise<string>;
-  generateResetToken(): Promise<string>;
-  verifyToken(token: string): Promise<TokenPayload | null>;
-  decodeToken(token: string): TokenPayload | null;
-  getExpirationTime(token: string): number; // Số giây còn lại trước khi token hết hạn
-  isTokenBlacklisted(token: string): Promise<boolean>;
-  blacklistToken(token: string, expiresIn: number): Promise<void>;
 }

@@ -17,7 +17,7 @@ export const config = {
       // process.env.VERIFY_TOKEN_URL ||
       // `http://localhost:${port}/api/v1/rpc/introspect`,
       process.env.NODE_ENV === 'production'
-        ? `https://nestjs-daily-performance-be.vercel.app/api/v1/rpc/introspect`
+        ? `https://tbsgroup-management.vercel.app//api/v1/rpc/introspect`
         : `http://localhost:${port}/api/v1/rpc/introspect` ||
           `http://localhost:${port}/api/v1/rpc/introspect`,
     postServiceURL:

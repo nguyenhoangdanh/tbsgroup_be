@@ -13,7 +13,7 @@ async function bootstrap() {
     credentials: true, // Cho phép gửi cookies hoặc token qua request
     allowedHeaders: ['Content-Type', 'Authorization'],
     exposedHeaders: ['Authorization'], // ⚠️ Phải thêm dòng này để client đọc được
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
   });
   app.setGlobalPrefix('api/v1');
   // Global filter cho ZodError

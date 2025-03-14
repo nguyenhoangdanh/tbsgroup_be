@@ -6,10 +6,7 @@ import { IRoleRepository, IRoleService } from './role.port';
 import { ROLE_REPOSITORY } from './role.di-token';
 import { Role, RoleWithRelations } from './role.model';
 import { RoleCondDTO, RoleDTO } from './role.dto';
-import {
-  REDIS_CACHE_SERVICE,
-  RedisCacheService,
-} from 'src/common/redis';
+import { REDIS_CACHE_SERVICE, RedisCacheService } from 'src/common/redis';
 
 @Injectable()
 export class RoleService implements IRoleService {
@@ -73,7 +70,7 @@ export class RoleService implements IRoleService {
     }
   }
 
-  async updateRole(id: string, dto: RoleDTO): Promise<void> {
+  async updateRole(id: string, dto: RoleDTO, role?: UserRole): Promise<void> {
     try {
       // Check if role exists
       const existingRole = await this.roleRepo.get(id);
@@ -88,7 +85,6 @@ export class RoleService implements IRoleService {
           throw AppError.from(new Error('Mã vai trò đã tồn tại'), 400);
         }
       }
-
       // System roles have restrictions
       if (existingRole.isSystem) {
         // Cannot change code or isSystem status of system roles
@@ -96,6 +92,19 @@ export class RoleService implements IRoleService {
           name: dto.name,
           description: dto.description,
           level: dto.level,
+          code:
+            role === UserRole.SUPER_ADMIN &&
+            existingRole.code !== UserRole.SUPER_ADMIN
+              ? dto.code
+              : role === UserRole.ADMIN &&
+                  (existingRole.code !== UserRole.SUPER_ADMIN ||
+                    role !== UserRole.ADMIN)
+                ? dto.code
+                : existingRole.code,
+          isSystem:
+            role === UserRole.SUPER_ADMIN || role === UserRole.ADMIN
+              ? dto.isSystem
+              : existingRole.isSystem,
           updatedAt: new Date(),
         };
 
@@ -149,7 +158,7 @@ export class RoleService implements IRoleService {
       }
 
       await this.roleRepo.delete(id);
-      
+
       // Xóa tất cả cache liên quan đến roles
       await this.invalidateRolesCache();
 
@@ -243,7 +252,10 @@ export class RoleService implements IRoleService {
   /**
    * Tạo khóa cache đơn giản và ổn định cho danh sách roles
    */
-  private generateRolesListCacheKey(conditions: RoleCondDTO, pagination: PaginationDTO): string {
+  private generateRolesListCacheKey(
+    conditions: RoleCondDTO,
+    pagination: PaginationDTO,
+  ): string {
     return this.cacheService.generateSimpleKey(
       this.ROLES_CACHE_PREFIX,
       conditions.code || '',
@@ -253,7 +265,7 @@ export class RoleService implements IRoleService {
       pagination.page,
       pagination.limit,
       pagination.sortBy || 'createdAt',
-      pagination.sortOrder || 'desc'
+      pagination.sortOrder || 'desc',
     );
   }
 

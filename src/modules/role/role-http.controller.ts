@@ -8,6 +8,9 @@ import {
   Post,
   Put,
   Query,
+  Req,
+  Request,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { ROLE_SERVICE } from './role.di-token';
@@ -15,7 +18,7 @@ import { IRoleService } from './role.port';
 import { RoleCondDTO, RoleDTO, roleDTOSchema } from './role.dto';
 import { PaginationDTO } from '../user/user.dto';
 import { RemoteAuthGuard, Roles, RolesGuard } from 'src/share/guard';
-import { UserRole } from 'src/share';
+import { ReqWithRequester, UserRole } from 'src/share';
 import { ZodValidationPipe } from 'src/share/pipes/zod-validation.pipe';
 
 @Controller('roles')
@@ -78,9 +81,10 @@ export class RoleHttpController {
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   async updateRole(
     @Param('id') id: string,
+    @Request() req: ReqWithRequester,
     @Body(new ZodValidationPipe(roleDTOSchema)) dto: RoleDTO,
   ) {
-    await this.roleService.updateRole(id, dto);
+    await this.roleService.updateRole(id, dto, req.requester.role);
     return { message: 'Vai trò đã được cập nhật thành công' };
   }
 

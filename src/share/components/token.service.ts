@@ -103,14 +103,19 @@ export class TokenService implements ITokenService {
       }
 
       const blacklistKey = this.getTokenKey(token);
-      
+
       // Check local cache first to avoid Redis calls
       const now = Date.now();
       const cachedValue = this.localTokenCache.get(blacklistKey);
 
-      if (cachedValue && now - cachedValue.timestamp < this.TOKEN_CACHE_TTL_MS) {
+      if (
+        cachedValue &&
+        now - cachedValue.timestamp < this.TOKEN_CACHE_TTL_MS
+      ) {
         // Use cached value if it's still fresh
-        this.logger.debug(`Using cached blacklist status for token: ${cachedValue.isBlacklisted}`);
+        this.logger.debug(
+          `Using cached blacklist status for token: ${cachedValue.isBlacklisted}`,
+        );
         return cachedValue.isBlacklisted;
       }
 
@@ -161,13 +166,13 @@ export class TokenService implements ITokenService {
       }
 
       const blacklistKey = this.getTokenKey(token);
-      
+
       // Cập nhật cache local trước
       this.localTokenCache.set(blacklistKey, {
         isBlacklisted: true,
         timestamp: Date.now(),
       });
-      
+
       // Lưu vào Redis
       await this.redisClient.set(blacklistKey, '1', 'EX', expiresIn);
       this.logger.debug(`Token blacklisted successfully: ${blacklistKey}`);
@@ -238,7 +243,7 @@ export class TokenService implements ITokenService {
     for (const tokenHash of sessions) {
       const blacklistKey = `${this.TOKEN_BLACKLIST_PREFIX}${tokenHash}`;
       await this.redisClient.set(blacklistKey, '1', 'EX', 86400); // 24 hours
-      
+
       // Cập nhật cache local
       this.localTokenCache.set(blacklistKey, {
         isBlacklisted: true,

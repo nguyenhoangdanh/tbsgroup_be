@@ -51,7 +51,6 @@ class MockRedisClient {
     mode?: string,
     duration?: number,
   ): Promise<'OK'> {
-
     // Clean expired keys first
     await this.cleanExpiredKeys();
 
@@ -70,7 +69,6 @@ class MockRedisClient {
 
   // Override exists to ensure blacklist checks work
   async exists(key: string): Promise<number> {
-
     // Clean expired keys first
     await this.cleanExpiredKeys();
 
@@ -349,8 +347,8 @@ const services: Provider[] = [
   {
     provide: REDIS_CACHE_SERVICE,
     useClass: RedisCacheService,
-  }
-]
+  },
+];
 
 @Global()
 @Module({

@@ -11,8 +11,7 @@ import { PrismaService } from 'src/share/prisma.service';
 export class RolePrismaRepository implements IRoleRepository {
   private readonly logger = new Logger(RolePrismaRepository.name);
 
-  constructor(private readonly prisma: PrismaService) {
-  }
+  constructor(private readonly prisma: PrismaService) {}
 
   async get(id: string): Promise<Role | null> {
     try {

@@ -18,7 +18,8 @@ export const config = {
       // `http://localhost:${port}/api/v1/rpc/introspect`,
       process.env.NODE_ENV === 'production'
         ? `https://nestjs-daily-performance-be.vercel.app/api/v1/rpc/introspect`
-        : `http://localhost:${port}/api/v1/rpc/introspect` || `http://localhost:${port}/api/v1/rpc/introspect`,
+        : `http://localhost:${port}/api/v1/rpc/introspect` ||
+          `http://localhost:${port}/api/v1/rpc/introspect`,
     postServiceURL:
       process.env.POST_SERVICE_URL || `http://localhost:${port}/api/v1`,
     userServiceURL:

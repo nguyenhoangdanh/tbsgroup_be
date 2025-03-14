@@ -1,11 +1,12 @@
 {
   "version": 2,
-  "buildCommand": "pnpm build",
-  "outputDirectory": "dist",
   "builds": [
     {
       "src": "dist/main.js",
-      "use": "@vercel/node"
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": [".env"]
+      }
     }
   ],
   "routes": [
@@ -15,6 +16,7 @@
     }
   ],
   "env": {
-    "PRISMA_CLI_BINARY_TARGETS": "debian-openssl-3.0.x"
+    "PRISMA_CLI_BINARY_TARGETS": "debian-openssl-3.0.x",
+    "NODE_ENV": "production"
   }
 }

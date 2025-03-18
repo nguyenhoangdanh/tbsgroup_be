@@ -190,7 +190,7 @@ export class UserHttpController {
         expiryDate,
         username,
         // Message to guide user in production
-        message: 'Mã xác thực đặt lại mật khẩu đã được gửi đến email của bạn.',
+        message: 'Đã xác thực thành công!',
       },
     };
   }

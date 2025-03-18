@@ -51,10 +51,13 @@ export type UserLoginDTO = z.infer<typeof userLoginDTOSchema>;
 // DTO cho cập nhật người dùng
 export const userUpdateDTOSchema = userSchema
   .pick({
+    username: true,
     avatar: true,
     fullName: true,
     email: true,
     phone: true,
+    cardId: true,
+    employeeId: true,
     status: true,
     factoryId: true,
     lineId: true,

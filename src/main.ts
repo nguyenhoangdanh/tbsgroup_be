@@ -11,7 +11,13 @@ async function bootstrap() {
       'https://nmtxts-daily-performance.vercel.app',
     ],
     credentials: true, // Cho phép gửi cookies hoặc token qua request
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-CSRF-Token',
+      'X-Requested-With',
+      'Accept',
+    ],
     exposedHeaders: ['Authorization'], // ⚠️ Phải thêm dòng này để client đọc được
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
   });

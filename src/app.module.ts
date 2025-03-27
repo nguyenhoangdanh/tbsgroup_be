@@ -11,6 +11,13 @@ import { RedisModule } from './common/redis';
 import { APP_FILTER } from '@nestjs/core';
 import { AppErrorFilter } from './common/exceptions/app-error.filter';
 import { RoleModule } from './modules/role/role.module';
+import { FactoryModule } from './modules/factory/factory.module';
+import { HandBagModule } from './modules/handbag/handbag.module';
+import { BagProcessModule } from './modules/handbag/process/bag-process.module';
+import { GroupModule } from './modules/group/group.module';
+import { BagGroupRateModule } from './modules/group/bag-group-rate/bag-group-rate.module';
+import { LineModule } from './modules/line/line.module';
+import { TeamModule } from './modules/team/team.module';
 @Module({
   imports: [
     ServeStaticModule.forRoot({
@@ -27,6 +34,13 @@ import { RoleModule } from './modules/role/role.module';
     UserModule,
     RedisModule,
     RoleModule,
+    FactoryModule,
+    HandBagModule,
+    BagProcessModule,
+    GroupModule,
+    BagGroupRateModule,
+    LineModule,
+    TeamModule,
     // UploadModule,
   ],
   controllers: [AppController],

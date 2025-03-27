@@ -104,7 +104,7 @@ async function main() {
   }
 
   // Hash password cho admin
-  const { hashedPassword, salt } = await hashPassword('Admin@123456');
+  const { hashedPassword, salt } = await hashPassword('Admin@123');
 
   // Tạo Super Admin user
   console.log('Creating Super Admin user...');
@@ -121,7 +121,7 @@ async function main() {
       password: hashedPassword,
       salt: salt,
       fullName: 'Super Admin',
-      email: 'superadmin@example.com',
+      email: 'hoangdanh54317@gmail.com',
       phone: '0123456789',
       status: 'ACTIVE',
       roleId: superAdminRole.id,

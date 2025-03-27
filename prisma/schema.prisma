@@ -73,6 +73,11 @@ enum ProductionIssueType {
   OTHER // Lý do khác
 }
 
+enum DepartmentType {
+  HEAD_OFFICE
+  FACTORY_OFFICE
+}
+
 // ==================== CORE MODELS ====================
 
 // Bảng quản lý người dùng
@@ -120,23 +125,24 @@ model User {
   attendances           Attendance[]
   productionRecords     ProductionRecord[]
   leaveRequests         LeaveRequest[]
-  receivedNotifications Notification[]          @relation("ReceivedNotifications")
-  sentNotifications     Notification[]          @relation("SentNotifications")
-  approvals             ApprovalRequest[]       @relation("Approver")
-  submissions           ApprovalRequest[]       @relation("Submitter")
-  approvedRecords       ProductionRecord[]      @relation("ApprovedRecords")
-  approvedAttendances   Attendance[]            @relation("ApprovedAttendances")
-  approvedLeaves        LeaveRequest[]          @relation("ApprovedLeaves")
+  receivedNotifications Notification[]              @relation("ReceivedNotifications")
+  sentNotifications     Notification[]              @relation("SentNotifications")
+  approvals             ApprovalRequest[]           @relation("Approver")
+  submissions           ApprovalRequest[]           @relation("Submitter")
+  approvedRecords       ProductionRecord[]          @relation("ApprovedRecords")
+  approvedAttendances   Attendance[]                @relation("ApprovedAttendances")
+  approvedLeaves        LeaveRequest[]              @relation("ApprovedLeaves")
   managedFactories      FactoryManager[]
   managedLines          LineManager[]
   ledTeams              TeamLeader[]
   ledGroups             GroupLeader[]
-  createdDigitalForms   DigitalProductionForm[] @relation("FormCreator")
-  updatedDigitalForms   DigitalProductionForm[] @relation("FormUpdater")
-  formEntries           ProductionFormEntry[]   @relation("WorkerEntry")
-  dataExports           DataExport[]            @relation("ExportCreator")
+  createdDigitalForms   DigitalProductionForm[]     @relation("FormCreator")
+  updatedDigitalForms   DigitalProductionForm[]     @relation("FormUpdater")
+  formEntries           ProductionFormEntry[]       @relation("WorkerEntry")
+  dataExports           DataExport[]                @relation("ExportCreator")
   digitalSignatures     DigitalSignature[]
-  revokedSignatures     DigitalSignature[]      @relation("SignatureRevoker")
+  revokedSignatures     DigitalSignature[]          @relation("SignatureRevoker")
+  authorizedTransfers   ProductionTransferHistory[] @relation("TransferAuthorizer")
 
   @@index([status], map: "idx_user_status")
   @@index([employeeId], map: "idx_user_employee_id")
@@ -284,27 +290,6 @@ model Position {
   @@map("positions")
 }
 
-// Bảng quy trình sản xuất
-model BagProcess {
-  id             String   @id @default(uuid()) @map("id") @db.Uuid
-  code           String   @unique @map("code") @db.VarChar(50)
-  name           String   @map("name") @db.VarChar(100)
-  description    String?  @map("description") @db.VarChar(255)
-  orderIndex     Int      @default(0) @map("order_index") // Thứ tự trong quy trình sản xuất
-  standardOutput Int      @default(0) @map("standard_output") // Sản lượng chuẩn/giờ
-  cycleDuration  Int?     @default(0) @map("cycle_duration") // Thời gian chu kỳ (giây)
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
-
-  handBags          BagProcessHandBag[]
-  productionRecords ProductionRecord[]
-  positions         PositionProcess[] // Quan hệ với vị trí
-  formEntries       ProductionFormEntry[]
-
-  @@index([orderIndex], map: "idx_bag_process_order")
-  @@map("bag_processes")
-}
-
 // Bảng quan hệ giữa Position và BagProcess
 model PositionProcess {
   positionId String   @map("position_id") @db.Uuid
@@ -323,17 +308,35 @@ model PositionProcess {
 // ==================== ORGANIZATIONAL STRUCTURE ====================
 
 // Bảng phòng ban
+// Bảng phòng ban (điều chỉnh)
 model Department {
-  id          String   @id @default(uuid()) @map("id") @db.Uuid
-  code        String   @unique @map("code") @db.VarChar(50)
-  name        String   @map("name") @db.VarChar(100)
-  description String?  @map("description") @db.VarChar(255)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+  id          String  @id @default(uuid()) @map("id") @db.Uuid
+  code        String  @unique @map("code") @db.VarChar(50)
+  name        String  @map("name") @db.VarChar(100)
+  description String? @map("description") @db.VarChar(255)
 
-  users     UserDepartment[]
-  factories Factory[]
+  // Thêm trường để phân loại bộ phận
+  departmentType DepartmentType @map("department_type") // HEAD_OFFICE, FACTORY_OFFICE 
 
+  // Mối quan hệ với Department cha (cho văn phòng điều hành tổng)
+  parentId         String?      @map("parent_id") @db.Uuid
+  parent           Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id])
+  childDepartments Department[] @relation("DepartmentHierarchy")
+
+  // Mối quan hệ hiện tại
+  users UserDepartment[]
+
+  // Thay đổi mối quan hệ với Factory
+  // Một Department (Factory_OFFICE) sẽ chỉ quản lý một Factory cụ thể
+  managedFactory Factory? @relation("ManagedByDepartment")
+
+  // Các trường thời gian
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamp(0)
+  Factory   Factory[]
+
+  @@index([departmentType], map: "idx_department_type")
+  @@index([parentId], map: "idx_department_parent")
   @@map("departments")
 }
 
@@ -355,21 +358,39 @@ model UserDepartment {
 
 // Bảng nhà máy
 model Factory {
-  id           String   @id @default(uuid()) @map("id") @db.Uuid
-  code         String   @unique @map("code") @db.VarChar(50)
-  name         String   @map("name") @db.VarChar(100)
-  description  String?  @map("description") @db.VarChar(255)
-  address      String?  @map("address") @db.VarChar(255)
-  departmentId String?  @map("department_id") @db.Uuid
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+  id          String  @id @default(uuid()) @map("id") @db.Uuid
+  code        String  @unique @map("code") @db.VarChar(50)
+  name        String  @map("name") @db.VarChar(100)
+  description String? @map("description") @db.VarChar(255)
+  address     String? @map("address") @db.VarChar(255)
 
-  department Department?      @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  managers   FactoryManager[]
-  lines      Line[]
-  users      User[]
+  // Thay đổi mối quan hệ với Department
+  // Một Factory thuộc quyền quản lý của Department (HEAD_OFFICE)
+  departmentId String?     @map("department_id") @db.Uuid
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  // Mối quan hệ mới: Factory được quản lý trực tiếp bởi một Department (FACTORY_OFFICE)
+  managingDepartmentId String?     @unique @map("managing_department_id") @db.Uuid
+  managingDepartment   Department? @relation("ManagedByDepartment", fields: [managingDepartmentId], references: [id])
+
+  // Các mối quan hệ hiện tại
+  managers FactoryManager[]
+  lines    Line[]
+  users    User[]
+
+  // Mối quan hệ mới với sản phẩm
+  bagColorFactories BagColorFactory[] // Sửa tên quan hệ phù hợp với BagColorFactory
+
+  // Quan hệ với lịch sử luân chuyển
+  transferFrom ProductionTransferHistory[] @relation("TransferFromFactory")
+  transferTo   ProductionTransferHistory[] @relation("TransferToFactory")
+
+  // Các trường thời gian
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
 
   @@index([departmentId], map: "idx_factory_department")
+  @@index([managingDepartmentId], map: "idx_factory_managing_department")
   @@map("factories")
 }
 
@@ -424,49 +445,146 @@ model Group {
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(0)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
 
-  team    Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  leaders GroupLeader[]
-  users   User[]
+  team     Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  leaders  GroupLeader[]
+  users    User[]
+  bagRates BagGroupRate[] // Thêm quan hệ với năng suất túi
 
   @@index([teamId], map: "idx_group_team_id")
   @@map("groups")
 }
 
-// ==================== PRODUCT MANAGEMENT ====================
+// ==================== PRODUCT MANAGEMENT (CẬP NHẬT) ====================
 
-// Bảng mã túi xách
+// Bảng mã túi xách (cập nhật)
 model HandBag {
-  id          String   @id @default(uuid()) @map("id") @db.Uuid
-  code        String   @unique @map("code") @db.VarChar(50)
-  name        String   @map("name") @db.VarChar(150)
-  description String?  @map("description") @db.VarChar(255)
-  imageUrl    String?  @map("image_url") @db.VarChar(255)
-  active      Boolean  @default(true) @map("active") // Trạng thái hoạt động
-  category    String?  @map("category") @db.VarChar(100) // Phân loại sản phẩm
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+  id          String  @id @default(uuid()) @map("id") @db.Uuid
+  code        String  @unique @map("code") @db.VarChar(50)
+  name        String  @map("name") @db.VarChar(150)
+  description String? @map("description") @db.VarChar(255)
+  imageUrl    String? @map("image_url") @db.VarChar(255)
+  active      Boolean @default(true) @map("active") // Trạng thái hoạt động
+  category    String? @map("category") @db.VarChar(100) // Phân loại sản phẩm
 
-  bagProcesses      BagProcessHandBag[]
+  // Thông tin kỹ thuật bổ sung
+  dimensions String?  @map("dimensions") @db.VarChar(100) // Kích thước túi
+  material   String?  @map("material") @db.VarChar(100) // Vật liệu chính
+  weight     Float?   @map("weight") // Trọng lượng (g)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  // Quan hệ
+  bagColors         BagColor[]
   productionRecords ProductionRecord[]
   formEntries       ProductionFormEntry[]
+  groupRates        BagGroupRate[] // Thêm quan hệ với năng suất theo nhóm
 
   @@index([active], map: "idx_hand_bag_active")
   @@index([category], map: "idx_hand_bag_category")
   @@map("hand_bags")
 }
 
-// Bảng quan hệ giữa BagProcess và HandBag
-model BagProcessHandBag {
-  bagProcessId   String   @map("bag_process_id") @db.Uuid
-  handBagId      String   @map("hand_bag_id") @db.Uuid
-  standardOutput Int?     @default(0) @map("standard_output") // Sản lượng chuẩn cho túi cụ thể
+// Model cho năng suất của từng túi theo nhóm
+model BagGroupRate {
+  id         String   @id @default(uuid()) @map("id") @db.Uuid
+  handBagId  String   @map("hand_bag_id") @db.Uuid
+  groupId    String   @map("group_id") @db.Uuid
+  outputRate Float    @default(0) @map("output_rate") // Năng suất theo nhóm
+  notes      String?  @map("notes") @db.VarChar(255)
+  active     Boolean  @default(true) @map("active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  // Quan hệ
+  handBag HandBag @relation(fields: [handBagId], references: [id], onDelete: Cascade)
+  group   Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([handBagId, groupId], map: "unique_bag_group_rate")
+  @@index([handBagId], map: "idx_bag_group_rate_hand_bag")
+  @@index([groupId], map: "idx_bag_group_rate_group")
+  @@map("bag_group_rates")
+}
+
+// Model mới: Quản lý màu sắc túi xách
+model BagColor {
+  id        String   @id @default(uuid()) @map("id") @db.Uuid
+  handBagId String   @map("hand_bag_id") @db.Uuid
+  colorCode String   @map("color_code") @db.VarChar(50) // Mã màu (ví dụ: RED001, BLUE002)
+  colorName String   @map("color_name") @db.VarChar(100) // Tên màu (ví dụ: Đỏ đậm, Xanh biển)
+  hexCode   String?  @map("hex_code") @db.VarChar(7) // Mã màu hex (#FF0000)
+  active    Boolean  @default(true) @map("active")
+  imageUrl  String?  @map("image_url") @db.VarChar(255) // Hình ảnh mẫu
+  notes     String?  @map("notes") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  // Quan hệ
+  handBag             HandBag               @relation(fields: [handBagId], references: [id], onDelete: Cascade)
+  processOutputs      BagColorProcess[] // Năng suất theo từng công đoạn
+  productionData      ProductionRecord[] // Dữ liệu sản xuất
+  factories           BagColorFactory[] // Quan hệ với các nhà máy sản xuất
+  ProductionFormEntry ProductionFormEntry[]
+
+  @@unique([handBagId, colorCode], map: "unique_bag_color")
+  @@index([handBagId], map: "idx_bag_color_hand_bag")
+  @@index([active], map: "idx_bag_color_active")
+  @@map("bag_colors")
+}
+
+// Bảng quy trình sản xuất (giữ nguyên và mở rộng mô tả)
+model BagProcess {
+  id             String   @id @default(uuid()) @map("id") @db.Uuid
+  code           String   @unique @map("code") @db.VarChar(50)
+  name           String   @map("name") @db.VarChar(100)
+  description    String?  @map("description") @db.VarChar(255)
+  orderIndex     Int      @default(0) @map("order_index") // Thứ tự trong quy trình sản xuất
+  processType    String?  @map("process_type") @db.VarChar(50) // Loại công đoạn: CUTTING, GLUING, PRESSING, STRAP_PAINTING, SEWING, QUALITY_CHECK
+  standardOutput Float    @default(0) @map("standard_output") // Sản lượng chuẩn/giờ
+  cycleDuration  Int?     @default(0) @map("cycle_duration") // Thời gian chu kỳ (giây)
+  machineType    String?  @map("machine_type") @db.VarChar(100) // Loại máy sử dụng
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
 
+  // Quan hệ
+  colorProcesses    BagColorProcess[] // NEW: Quan hệ mới với màu sắc và năng suất
+  productionRecords ProductionRecord[]
+  positions         PositionProcess[]
+  formEntries       ProductionFormEntry[]
+
+  @@index([orderIndex], map: "idx_bag_process_order")
+  @@index([processType], map: "idx_bag_process_type")
+  @@map("bag_processes")
+}
+
+// Model mới: Thông tin năng suất theo màu sắc và công đoạn
+model BagColorProcess {
+  id           String @id @default(uuid()) @map("id") @db.Uuid
+  bagColorId   String @map("bag_color_id") @db.Uuid
+  bagProcessId String @map("bag_process_id") @db.Uuid
+
+  // Thông tin năng suất
+  standardOutput Int   @default(0) @map("standard_output") // Sản lượng chuẩn/giờ cho màu này
+  difficulty     Int?  @default(1) @map("difficulty") // Độ khó (1-5)
+  timeEstimate   Int?  @map("time_estimate") // Ước tính thời gian (phút)
+  productivity   Float @map("productivity") // Hệ số năng suất (0.5 - 1.5)
+
+  // Thông tin kỹ thuật bổ sung
+  materialUsage Json?   @map("material_usage") // Lượng nguyên liệu sử dụng
+  qualityNotes  String? @map("quality_notes") @db.Text // Ghi chú về chất lượng
+  specialTools  String? @map("special_tools") @db.VarChar(255) // Dụng cụ đặc biệt
+
+  // Thông tin thời gian
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  // Quan hệ
+  bagColor   BagColor   @relation(fields: [bagColorId], references: [id], onDelete: Cascade)
   bagProcess BagProcess @relation(fields: [bagProcessId], references: [id], onDelete: Cascade)
-  handBag    HandBag    @relation(fields: [handBagId], references: [id], onDelete: Cascade)
 
-  @@id([bagProcessId, handBagId])
-  @@map("bag_process_hand_bags")
+  @@unique([bagColorId, bagProcessId], map: "unique_color_process")
+  @@index([bagColorId], map: "idx_bag_color_process_color")
+  @@index([bagProcessId], map: "idx_bag_color_process_process")
+  @@map("bag_color_processes")
 }
 
 // ==================== ATTENDANCE & PRODUCTION ====================
@@ -624,12 +742,13 @@ model ProductionProcessForm {
   @@map("production_process_forms")
 }
 
-// Bảng ProductionRecord (cho khả năng tương thích dữ liệu cũ)
 model ProductionRecord {
   id           String       @id @default(uuid()) @map("id") @db.Uuid
   userId       String       @map("user_id") @db.Uuid
   bagProcessId String       @map("bag_process_id") @db.Uuid
   handBagId    String       @map("hand_bag_id") @db.Uuid
+  // Thêm trường mới cho màu sắc
+  bagColorId   String       @map("bag_color_id") @db.Uuid
   date         DateTime     @map("date") @db.Date
   shift        ShiftType    @map("shift")
   totalOutput  Int          @map("total_output")
@@ -650,15 +769,128 @@ model ProductionRecord {
   approver         User?                  @relation("ApprovedRecords", fields: [approvedBy], references: [id])
   bagProcess       BagProcess             @relation(fields: [bagProcessId], references: [id])
   handBag          HandBag                @relation(fields: [handBagId], references: [id])
+  // Thêm quan hệ với màu sắc
+  bagColor         BagColor               @relation(fields: [bagColorId], references: [id])
   hourlyData       ProductionHourlyData[]
   productionIssues ProductionIssue[]
   form             ProductionProcessForm? @relation(fields: [formId], references: [id])
 
-  @@unique([userId, bagProcessId, handBagId, date, shift], map: "unique_production_record")
+  @@unique([userId, bagProcessId, handBagId, bagColorId, date, shift], map: "unique_production_record")
   @@index([date], map: "idx_production_date")
   @@index([status], map: "idx_production_status")
   @@index([formId], map: "idx_production_form_id")
+  @@index([bagColorId], map: "idx_production_bag_color")
   @@map("production_records")
+}
+
+// Cập nhật bảng ProductionFormEntry
+// Cập nhật ProductionFormEntry để thêm quan hệ với BagColor
+model ProductionFormEntry {
+  id         String @id @default(uuid()) @map("id") @db.Uuid
+  formId     String @map("form_id") @db.Uuid // Liên kết với form
+  userId     String @map("user_id") @db.Uuid // Công nhân
+  handBagId  String @map("hand_bag_id") @db.Uuid // Mã túi
+  // Thêm trường màu sắc
+  bagColorId String @map("bag_color_id") @db.Uuid // Mã màu túi
+  processId  String @map("process_id") @db.Uuid // Công đoạn
+
+  // Thông tin sản lượng theo giờ (JSON để lưu trữ linh hoạt)
+  hourlyData  Json @default("{}") @map("hourly_data") // Format: {"hour1": 10, "hour2": 15, ...}
+  totalOutput Int  @default(0) @map("total_output") // Tổng sản lượng
+
+  // Thông tin điểm danh tích hợp
+  attendanceStatus AttendanceStatus @default(PRESENT) @map("attendance_status")
+  checkInTime      DateTime?        @map("check_in_time") @db.Timestamp(0)
+  checkOutTime     DateTime?        @map("check_out_time") @db.Timestamp(0)
+  attendanceNote   String?          @map("attendance_note") @db.VarChar(255)
+
+  // Issues
+  issues Json? @map("issues") // Format: [{"type": "ABSENT", "hour": 2, "impact": 50, "description": "..."}]
+
+  // Đánh giá chất lượng
+  qualityScore Int?    @default(100) @map("quality_score") // Điểm chất lượng (0-100)
+  qualityNotes String? @map("quality_notes") @db.VarChar(255)
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  // Relationships
+  form     DigitalProductionForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+  user     User                  @relation("WorkerEntry", fields: [userId], references: [id])
+  handBag  HandBag               @relation(fields: [handBagId], references: [id])
+  process  BagProcess            @relation(fields: [processId], references: [id])
+  bagColor BagColor              @relation(fields: [bagColorId], references: [id]) // Thêm quan hệ với màu sắc
+
+  @@unique([formId, userId, handBagId, bagColorId, processId], name: "unique_form_entry")
+  @@index([formId], map: "idx_form_entry_form")
+  @@index([userId], map: "idx_form_entry_user")
+  @@index([bagColorId], map: "idx_form_entry_color")
+  @@map("production_form_entries")
+}
+
+// ==================== QUẢN LÝ PHÂN BỔ SẢN XUẤT ====================
+
+// Model mới: Phân bổ sản xuất theo nhà máy
+model BagColorFactory {
+  id               String  @id @default(uuid()) @map("id") @db.Uuid
+  bagColorId       String  @map("bag_color_id") @db.Uuid
+  factoryId        String  @map("factory_id") @db.Uuid
+  isPrimaryFactory Boolean @default(false) @map("is_primary_factory") // Nhà máy chính sản xuất mã này
+  isActive         Boolean @default(true) @map("is_active") // Đang sản xuất ở nhà máy này
+
+  // Thông tin kế hoạch sản xuất
+  plannedQuantity Int?      @map("planned_quantity") // Số lượng dự kiến sản xuất
+  startDate       DateTime? @map("start_date") @db.Date // Ngày bắt đầu sản xuất
+  endDate         DateTime? @map("end_date") @db.Date // Ngày kết thúc sản xuất
+  priority        Int?      @default(0) @map("priority") // Độ ưu tiên (thấp đến cao: 0-10)
+
+  // Thông tin sản xuất
+  actualQuantity Int?    @default(0) @map("actual_quantity") // Số lượng đã sản xuất
+  notes          String? @map("notes") @db.Text
+
+  // Thông tin thời gian
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  // Quan hệ
+  bagColor BagColor @relation(fields: [bagColorId], references: [id], onDelete: Cascade)
+  factory  Factory  @relation(fields: [factoryId], references: [id], onDelete: Cascade)
+
+  @@unique([bagColorId, factoryId], map: "unique_bag_color_factory")
+  @@index([factoryId], map: "idx_bag_color_factory_factory")
+  @@index([bagColorId], map: "idx_bag_color_factory_color")
+  @@index([isActive], map: "idx_bag_color_factory_active")
+  @@index([priority], map: "idx_bag_color_factory_priority")
+  @@map("bag_color_factories")
+}
+
+// Model mới: Lịch sử luân chuyển sản xuất
+model ProductionTransferHistory {
+  id             String   @id @default(uuid()) @map("id") @db.Uuid
+  bagColorId     String   @map("bag_color_id") @db.Uuid
+  fromFactoryId  String   @map("from_factory_id") @db.Uuid
+  toFactoryId    String   @map("to_factory_id") @db.Uuid
+  quantity       Int      @map("quantity") // Số lượng chuyển 
+  reason         String?  @map("reason") @db.Text // Lý do chuyển
+  transferDate   DateTime @map("transfer_date") @db.Timestamp(0)
+  authorizedById String   @map("authorized_by_id") @db.Uuid // Người phê duyệt
+  status         String   @default("COMPLETED") @map("status") @db.VarChar(50)
+
+  // Thông tin thời gian
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  // Quan hệ
+  fromFactory  Factory @relation("TransferFromFactory", fields: [fromFactoryId], references: [id])
+  toFactory    Factory @relation("TransferToFactory", fields: [toFactoryId], references: [id])
+  authorizedBy User    @relation("TransferAuthorizer", fields: [authorizedById], references: [id])
+
+  @@index([bagColorId], map: "idx_production_transfer_color")
+  @@index([fromFactoryId], map: "idx_production_transfer_from")
+  @@index([toFactoryId], map: "idx_production_transfer_to")
+  @@index([transferDate], map: "idx_production_transfer_date")
+  @@map("production_transfer_history")
 }
 
 // Bảng lưu sản lượng theo từng giờ
@@ -716,47 +948,6 @@ model DigitalProductionForm {
   @@index([status], map: "idx_digital_form_status")
   @@index([createdById], map: "idx_digital_form_creator")
   @@map("digital_production_forms")
-}
-
-// Mục trong form - tích hợp thông tin điểm danh
-model ProductionFormEntry {
-  id        String @id @default(uuid()) @map("id") @db.Uuid
-  formId    String @map("form_id") @db.Uuid // Liên kết với form
-  userId    String @map("user_id") @db.Uuid // Công nhân
-  handBagId String @map("hand_bag_id") @db.Uuid // Mã túi
-  processId String @map("process_id") @db.Uuid // Công đoạn
-
-  // Thông tin sản lượng theo giờ (JSON để lưu trữ linh hoạt)
-  hourlyData  Json @default("{}") @map("hourly_data") // Format: {"hour1": 10, "hour2": 15, ...}
-  totalOutput Int  @default(0) @map("total_output") // Tổng sản lượng
-
-  // Thông tin điểm danh tích hợp
-  attendanceStatus AttendanceStatus @default(PRESENT) @map("attendance_status")
-  checkInTime      DateTime?        @map("check_in_time") @db.Timestamp(0)
-  checkOutTime     DateTime?        @map("check_out_time") @db.Timestamp(0)
-  attendanceNote   String?          @map("attendance_note") @db.VarChar(255)
-
-  // Issues
-  issues Json? @map("issues") // Format: [{"type": "ABSENT", "hour": 2, "impact": 50, "description": "..."}]
-
-  // Đánh giá chất lượng
-  qualityScore Int?    @default(100) @map("quality_score") // Điểm chất lượng (0-100)
-  qualityNotes String? @map("quality_notes") @db.VarChar(255)
-
-  // Timestamps
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
-
-  // Relationships
-  form    DigitalProductionForm @relation(fields: [formId], references: [id], onDelete: Cascade)
-  user    User                  @relation("WorkerEntry", fields: [userId], references: [id])
-  handBag HandBag               @relation(fields: [handBagId], references: [id])
-  process BagProcess            @relation(fields: [processId], references: [id])
-
-  @@unique([formId, userId, handBagId, processId], name: "unique_form_entry")
-  @@index([formId], map: "idx_form_entry_form")
-  @@index([userId], map: "idx_form_entry_user")
-  @@map("production_form_entries")
 }
 
 // ==================== KÝ DUYỆT ĐIỆN TỬ ====================

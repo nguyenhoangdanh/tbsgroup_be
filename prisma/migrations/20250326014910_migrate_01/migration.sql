@@ -22,6 +22,9 @@ CREATE TYPE "LeaveStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED
 -- CreateEnum
 CREATE TYPE "ProductionIssueType" AS ENUM ('ABSENT', 'LATE', 'WAITING_MATERIALS', 'QUALITY_ISSUES', 'LOST_MATERIALS', 'OTHER');
 
+-- CreateEnum
+CREATE TYPE "DepartmentType" AS ENUM ('HEAD_OFFICE', 'FACTORY_OFFICE');
+
 -- CreateTable
 CREATE TABLE "users" (
     "id" UUID NOT NULL,
@@ -35,7 +38,7 @@ CREATE TABLE "users" (
     "email" VARCHAR(100),
     "phone" VARCHAR(20),
     "status" "UserStatus" NOT NULL DEFAULT 'PENDING_ACTIVATION',
-    "default_role_id" UUID,
+    "role_id" UUID,
     "factory_id" UUID,
     "line_id" UUID,
     "team_id" UUID,
@@ -58,6 +61,7 @@ CREATE TABLE "user_role_assignments" (
     "scope" VARCHAR(50),
     "created_at" TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(0) NOT NULL,
+    "expiry_date" DATE,
 
     CONSTRAINT "user_role_assignments_pkey" PRIMARY KEY ("id")
 );
@@ -143,21 +147,6 @@ CREATE TABLE "positions" (
 );
 
 -- CreateTable
-CREATE TABLE "bag_processes" (
-    "id" UUID NOT NULL,
-    "code" VARCHAR(50) NOT NULL,
-    "name" VARCHAR(100) NOT NULL,
-    "description" VARCHAR(255),
-    "order_index" INTEGER NOT NULL DEFAULT 0,
-    "standard_output" INTEGER NOT NULL DEFAULT 0,
-    "cycle_duration" INTEGER DEFAULT 0,
-    "created_at" TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(0) NOT NULL,
-
-    CONSTRAINT "bag_processes_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "position_processes" (
     "position_id" UUID NOT NULL,
     "process_id" UUID NOT NULL,
@@ -174,6 +163,8 @@ CREATE TABLE "departments" (
     "code" VARCHAR(50) NOT NULL,
     "name" VARCHAR(100) NOT NULL,
     "description" VARCHAR(255),
+    "department_type" "DepartmentType" NOT NULL,
+    "parent_id" UUID,
     "created_at" TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(0) NOT NULL,
 
@@ -199,6 +190,7 @@ CREATE TABLE "factories" (
     "description" VARCHAR(255),
     "address" VARCHAR(255),
     "department_id" UUID,
+    "managing_department_id" UUID,
     "created_at" TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(0) NOT NULL,
 
@@ -254,6 +246,9 @@ CREATE TABLE "hand_bags" (
     "image_url" VARCHAR(255),
     "active" BOOLEAN NOT NULL DEFAULT true,
     "category" VARCHAR(100),
+    "dimensions" VARCHAR(100),
+    "material" VARCHAR(100),
+    "weight" DOUBLE PRECISION,
     "created_at" TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(0) NOT NULL,
 
@@ -261,13 +256,68 @@ CREATE TABLE "hand_bags" (
 );
 
 -- CreateTable
-CREATE TABLE "bag_process_hand_bags" (
-    "bag_process_id" UUID NOT NULL,
+CREATE TABLE "bag_group_rates" (
+    "id" UUID NOT NULL,
     "hand_bag_id" UUID NOT NULL,
-    "standard_output" INTEGER DEFAULT 0,
+    "group_id" UUID NOT NULL,
+    "output_rate" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "notes" VARCHAR(255),
+    "active" BOOLEAN NOT NULL DEFAULT true,
     "created_at" TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(0) NOT NULL,
 
-    CONSTRAINT "bag_process_hand_bags_pkey" PRIMARY KEY ("bag_process_id","hand_bag_id")
+    CONSTRAINT "bag_group_rates_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "bag_colors" (
+    "id" UUID NOT NULL,
+    "hand_bag_id" UUID NOT NULL,
+    "color_code" VARCHAR(50) NOT NULL,
+    "color_name" VARCHAR(100) NOT NULL,
+    "hex_code" VARCHAR(7),
+    "active" BOOLEAN NOT NULL DEFAULT true,
+    "image_url" VARCHAR(255),
+    "notes" VARCHAR(255),
+    "created_at" TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(0) NOT NULL,
+
+    CONSTRAINT "bag_colors_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "bag_processes" (
+    "id" UUID NOT NULL,
+    "code" VARCHAR(50) NOT NULL,
+    "name" VARCHAR(100) NOT NULL,
+    "description" VARCHAR(255),
+    "order_index" INTEGER NOT NULL DEFAULT 0,
+    "process_type" VARCHAR(50),
+    "standard_output" INTEGER NOT NULL DEFAULT 0,
+    "cycle_duration" INTEGER DEFAULT 0,
+    "machine_type" VARCHAR(100),
+    "created_at" TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(0) NOT NULL,
+
+    CONSTRAINT "bag_processes_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "bag_color_processes" (
+    "id" UUID NOT NULL,
+    "bag_color_id" UUID NOT NULL,
+    "bag_process_id" UUID NOT NULL,
+    "standard_output" INTEGER NOT NULL DEFAULT 0,
+    "difficulty" INTEGER DEFAULT 1,
+    "time_estimate" INTEGER,
+    "productivity" DOUBLE PRECISION NOT NULL,
+    "material_usage" JSONB,
+    "quality_notes" TEXT,
+    "special_tools" VARCHAR(255),
+    "created_at" TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(0) NOT NULL,
+
+    CONSTRAINT "bag_color_processes_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -391,6 +441,7 @@ CREATE TABLE "production_records" (
     "user_id" UUID NOT NULL,
     "bag_process_id" UUID NOT NULL,
     "hand_bag_id" UUID NOT NULL,
+    "bag_color_id" UUID NOT NULL,
     "date" DATE NOT NULL,
     "shift" "ShiftType" NOT NULL,
     "total_output" INTEGER NOT NULL,
@@ -403,6 +454,65 @@ CREATE TABLE "production_records" (
     "updated_at" TIMESTAMP(0) NOT NULL,
 
     CONSTRAINT "production_records_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "production_form_entries" (
+    "id" UUID NOT NULL,
+    "form_id" UUID NOT NULL,
+    "user_id" UUID NOT NULL,
+    "hand_bag_id" UUID NOT NULL,
+    "bag_color_id" UUID NOT NULL,
+    "process_id" UUID NOT NULL,
+    "hourly_data" JSONB NOT NULL DEFAULT '{}',
+    "total_output" INTEGER NOT NULL DEFAULT 0,
+    "attendance_status" "AttendanceStatus" NOT NULL DEFAULT 'PRESENT',
+    "check_in_time" TIMESTAMP(0),
+    "check_out_time" TIMESTAMP(0),
+    "attendance_note" VARCHAR(255),
+    "issues" JSONB,
+    "quality_score" INTEGER DEFAULT 100,
+    "quality_notes" VARCHAR(255),
+    "created_at" TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(0) NOT NULL,
+
+    CONSTRAINT "production_form_entries_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "bag_color_factories" (
+    "id" UUID NOT NULL,
+    "bag_color_id" UUID NOT NULL,
+    "factory_id" UUID NOT NULL,
+    "is_primary_factory" BOOLEAN NOT NULL DEFAULT false,
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "planned_quantity" INTEGER,
+    "start_date" DATE,
+    "end_date" DATE,
+    "priority" INTEGER DEFAULT 0,
+    "actual_quantity" INTEGER DEFAULT 0,
+    "notes" TEXT,
+    "created_at" TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(0) NOT NULL,
+
+    CONSTRAINT "bag_color_factories_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "production_transfer_history" (
+    "id" UUID NOT NULL,
+    "bag_color_id" UUID NOT NULL,
+    "from_factory_id" UUID NOT NULL,
+    "to_factory_id" UUID NOT NULL,
+    "quantity" INTEGER NOT NULL,
+    "reason" TEXT,
+    "transfer_date" TIMESTAMP(0) NOT NULL,
+    "authorized_by_id" UUID NOT NULL,
+    "status" VARCHAR(50) NOT NULL DEFAULT 'COMPLETED',
+    "created_at" TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(0) NOT NULL,
+
+    CONSTRAINT "production_transfer_history_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -439,28 +549,6 @@ CREATE TABLE "digital_production_forms" (
     "sync_status" VARCHAR(50),
 
     CONSTRAINT "digital_production_forms_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "production_form_entries" (
-    "id" UUID NOT NULL,
-    "form_id" UUID NOT NULL,
-    "user_id" UUID NOT NULL,
-    "hand_bag_id" UUID NOT NULL,
-    "process_id" UUID NOT NULL,
-    "hourly_data" JSONB NOT NULL DEFAULT '{}',
-    "total_output" INTEGER NOT NULL DEFAULT 0,
-    "attendance_status" "AttendanceStatus" NOT NULL DEFAULT 'PRESENT',
-    "check_in_time" TIMESTAMP(0),
-    "check_out_time" TIMESTAMP(0),
-    "attendance_note" VARCHAR(255),
-    "issues" JSONB,
-    "quality_score" INTEGER DEFAULT 100,
-    "quality_notes" VARCHAR(255),
-    "created_at" TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(0) NOT NULL,
-
-    CONSTRAINT "production_form_entries_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -651,6 +739,15 @@ CREATE UNIQUE INDEX "roles_code_key" ON "roles"("code");
 CREATE INDEX "idx_role_level" ON "roles"("level");
 
 -- CreateIndex
+CREATE INDEX "roles_name_idx" ON "roles"("name");
+
+-- CreateIndex
+CREATE INDEX "roles_level_idx" ON "roles"("level");
+
+-- CreateIndex
+CREATE INDEX "roles_is_system_idx" ON "roles"("is_system");
+
+-- CreateIndex
 CREATE INDEX "idx_factory_manager_factory" ON "factory_managers"("factory_id");
 
 -- CreateIndex
@@ -684,19 +781,25 @@ CREATE INDEX "idx_position_category" ON "positions"("category");
 CREATE INDEX "idx_position_skill_level" ON "positions"("skill_level");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "bag_processes_code_key" ON "bag_processes"("code");
-
--- CreateIndex
-CREATE INDEX "idx_bag_process_order" ON "bag_processes"("order_index");
-
--- CreateIndex
 CREATE UNIQUE INDEX "departments_code_key" ON "departments"("code");
+
+-- CreateIndex
+CREATE INDEX "idx_department_type" ON "departments"("department_type");
+
+-- CreateIndex
+CREATE INDEX "idx_department_parent" ON "departments"("parent_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "factories_code_key" ON "factories"("code");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "factories_managing_department_id_key" ON "factories"("managing_department_id");
+
+-- CreateIndex
 CREATE INDEX "idx_factory_department" ON "factories"("department_id");
+
+-- CreateIndex
+CREATE INDEX "idx_factory_managing_department" ON "factories"("managing_department_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "lines_code_key" ON "lines"("code");
@@ -724,6 +827,42 @@ CREATE INDEX "idx_hand_bag_active" ON "hand_bags"("active");
 
 -- CreateIndex
 CREATE INDEX "idx_hand_bag_category" ON "hand_bags"("category");
+
+-- CreateIndex
+CREATE INDEX "idx_bag_group_rate_hand_bag" ON "bag_group_rates"("hand_bag_id");
+
+-- CreateIndex
+CREATE INDEX "idx_bag_group_rate_group" ON "bag_group_rates"("group_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "unique_bag_group_rate" ON "bag_group_rates"("hand_bag_id", "group_id");
+
+-- CreateIndex
+CREATE INDEX "idx_bag_color_hand_bag" ON "bag_colors"("hand_bag_id");
+
+-- CreateIndex
+CREATE INDEX "idx_bag_color_active" ON "bag_colors"("active");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "unique_bag_color" ON "bag_colors"("hand_bag_id", "color_code");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "bag_processes_code_key" ON "bag_processes"("code");
+
+-- CreateIndex
+CREATE INDEX "idx_bag_process_order" ON "bag_processes"("order_index");
+
+-- CreateIndex
+CREATE INDEX "idx_bag_process_type" ON "bag_processes"("process_type");
+
+-- CreateIndex
+CREATE INDEX "idx_bag_color_process_color" ON "bag_color_processes"("bag_color_id");
+
+-- CreateIndex
+CREATE INDEX "idx_bag_color_process_process" ON "bag_color_processes"("bag_process_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "unique_color_process" ON "bag_color_processes"("bag_color_id", "bag_process_id");
 
 -- CreateIndex
 CREATE INDEX "idx_shift_type" ON "shifts"("type");
@@ -795,7 +934,49 @@ CREATE INDEX "idx_production_status" ON "production_records"("status");
 CREATE INDEX "idx_production_form_id" ON "production_records"("form_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "unique_production_record" ON "production_records"("user_id", "bag_process_id", "hand_bag_id", "date", "shift");
+CREATE INDEX "idx_production_bag_color" ON "production_records"("bag_color_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "unique_production_record" ON "production_records"("user_id", "bag_process_id", "hand_bag_id", "bag_color_id", "date", "shift");
+
+-- CreateIndex
+CREATE INDEX "idx_form_entry_form" ON "production_form_entries"("form_id");
+
+-- CreateIndex
+CREATE INDEX "idx_form_entry_user" ON "production_form_entries"("user_id");
+
+-- CreateIndex
+CREATE INDEX "idx_form_entry_color" ON "production_form_entries"("bag_color_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "production_form_entries_form_id_user_id_hand_bag_id_bag_col_key" ON "production_form_entries"("form_id", "user_id", "hand_bag_id", "bag_color_id", "process_id");
+
+-- CreateIndex
+CREATE INDEX "idx_bag_color_factory_factory" ON "bag_color_factories"("factory_id");
+
+-- CreateIndex
+CREATE INDEX "idx_bag_color_factory_color" ON "bag_color_factories"("bag_color_id");
+
+-- CreateIndex
+CREATE INDEX "idx_bag_color_factory_active" ON "bag_color_factories"("is_active");
+
+-- CreateIndex
+CREATE INDEX "idx_bag_color_factory_priority" ON "bag_color_factories"("priority");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "unique_bag_color_factory" ON "bag_color_factories"("bag_color_id", "factory_id");
+
+-- CreateIndex
+CREATE INDEX "idx_production_transfer_color" ON "production_transfer_history"("bag_color_id");
+
+-- CreateIndex
+CREATE INDEX "idx_production_transfer_from" ON "production_transfer_history"("from_factory_id");
+
+-- CreateIndex
+CREATE INDEX "idx_production_transfer_to" ON "production_transfer_history"("to_factory_id");
+
+-- CreateIndex
+CREATE INDEX "idx_production_transfer_date" ON "production_transfer_history"("transfer_date");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "unique_hourly_data" ON "production_hourly_data"("production_record_id", "hour");
@@ -814,15 +995,6 @@ CREATE INDEX "idx_digital_form_status" ON "digital_production_forms"("status");
 
 -- CreateIndex
 CREATE INDEX "idx_digital_form_creator" ON "digital_production_forms"("created_by_id");
-
--- CreateIndex
-CREATE INDEX "idx_form_entry_form" ON "production_form_entries"("form_id");
-
--- CreateIndex
-CREATE INDEX "idx_form_entry_user" ON "production_form_entries"("user_id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "production_form_entries_form_id_user_id_hand_bag_id_process_key" ON "production_form_entries"("form_id", "user_id", "hand_bag_id", "process_id");
 
 -- CreateIndex
 CREATE INDEX "idx_approval_workflow_entity_type" ON "approval_workflows"("entity_type");
@@ -888,7 +1060,7 @@ CREATE INDEX "idx_report_type" ON "reports"("report_type");
 CREATE INDEX "idx_report_active" ON "reports"("is_active");
 
 -- AddForeignKey
-ALTER TABLE "users" ADD CONSTRAINT "users_default_role_id_fkey" FOREIGN KEY ("default_role_id") REFERENCES "roles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "users" ADD CONSTRAINT "users_role_id_fkey" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "users" ADD CONSTRAINT "users_factory_id_fkey" FOREIGN KEY ("factory_id") REFERENCES "factories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -942,6 +1114,9 @@ ALTER TABLE "position_processes" ADD CONSTRAINT "position_processes_position_id_
 ALTER TABLE "position_processes" ADD CONSTRAINT "position_processes_process_id_fkey" FOREIGN KEY ("process_id") REFERENCES "bag_processes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "departments" ADD CONSTRAINT "departments_parent_id_fkey" FOREIGN KEY ("parent_id") REFERENCES "departments"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "user_departments" ADD CONSTRAINT "user_departments_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -954,6 +1129,9 @@ ALTER TABLE "user_departments" ADD CONSTRAINT "user_departments_role_id_fkey" FO
 ALTER TABLE "factories" ADD CONSTRAINT "factories_department_id_fkey" FOREIGN KEY ("department_id") REFERENCES "departments"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "factories" ADD CONSTRAINT "factories_managing_department_id_fkey" FOREIGN KEY ("managing_department_id") REFERENCES "departments"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "lines" ADD CONSTRAINT "lines_factory_id_fkey" FOREIGN KEY ("factory_id") REFERENCES "factories"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -963,10 +1141,19 @@ ALTER TABLE "teams" ADD CONSTRAINT "teams_line_id_fkey" FOREIGN KEY ("line_id") 
 ALTER TABLE "groups" ADD CONSTRAINT "groups_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "bag_process_hand_bags" ADD CONSTRAINT "bag_process_hand_bags_bag_process_id_fkey" FOREIGN KEY ("bag_process_id") REFERENCES "bag_processes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "bag_group_rates" ADD CONSTRAINT "bag_group_rates_hand_bag_id_fkey" FOREIGN KEY ("hand_bag_id") REFERENCES "hand_bags"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "bag_process_hand_bags" ADD CONSTRAINT "bag_process_hand_bags_hand_bag_id_fkey" FOREIGN KEY ("hand_bag_id") REFERENCES "hand_bags"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "bag_group_rates" ADD CONSTRAINT "bag_group_rates_group_id_fkey" FOREIGN KEY ("group_id") REFERENCES "groups"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "bag_colors" ADD CONSTRAINT "bag_colors_hand_bag_id_fkey" FOREIGN KEY ("hand_bag_id") REFERENCES "hand_bags"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "bag_color_processes" ADD CONSTRAINT "bag_color_processes_bag_color_id_fkey" FOREIGN KEY ("bag_color_id") REFERENCES "bag_colors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "bag_color_processes" ADD CONSTRAINT "bag_color_processes_bag_process_id_fkey" FOREIGN KEY ("bag_process_id") REFERENCES "bag_processes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "attendances" ADD CONSTRAINT "attendances_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -1008,19 +1195,10 @@ ALTER TABLE "production_records" ADD CONSTRAINT "production_records_bag_process_
 ALTER TABLE "production_records" ADD CONSTRAINT "production_records_hand_bag_id_fkey" FOREIGN KEY ("hand_bag_id") REFERENCES "hand_bags"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "production_records" ADD CONSTRAINT "production_records_bag_color_id_fkey" FOREIGN KEY ("bag_color_id") REFERENCES "bag_colors"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "production_records" ADD CONSTRAINT "production_records_form_id_fkey" FOREIGN KEY ("form_id") REFERENCES "production_process_forms"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "production_hourly_data" ADD CONSTRAINT "production_hourly_data_production_record_id_fkey" FOREIGN KEY ("production_record_id") REFERENCES "production_records"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "digital_production_forms" ADD CONSTRAINT "digital_production_forms_line_id_fkey" FOREIGN KEY ("line_id") REFERENCES "lines"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "digital_production_forms" ADD CONSTRAINT "digital_production_forms_created_by_id_fkey" FOREIGN KEY ("created_by_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "digital_production_forms" ADD CONSTRAINT "digital_production_forms_updated_by_id_fkey" FOREIGN KEY ("updated_by_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "production_form_entries" ADD CONSTRAINT "production_form_entries_form_id_fkey" FOREIGN KEY ("form_id") REFERENCES "digital_production_forms"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -1033,6 +1211,36 @@ ALTER TABLE "production_form_entries" ADD CONSTRAINT "production_form_entries_ha
 
 -- AddForeignKey
 ALTER TABLE "production_form_entries" ADD CONSTRAINT "production_form_entries_process_id_fkey" FOREIGN KEY ("process_id") REFERENCES "bag_processes"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "production_form_entries" ADD CONSTRAINT "production_form_entries_bag_color_id_fkey" FOREIGN KEY ("bag_color_id") REFERENCES "bag_colors"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "bag_color_factories" ADD CONSTRAINT "bag_color_factories_bag_color_id_fkey" FOREIGN KEY ("bag_color_id") REFERENCES "bag_colors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "bag_color_factories" ADD CONSTRAINT "bag_color_factories_factory_id_fkey" FOREIGN KEY ("factory_id") REFERENCES "factories"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "production_transfer_history" ADD CONSTRAINT "production_transfer_history_from_factory_id_fkey" FOREIGN KEY ("from_factory_id") REFERENCES "factories"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "production_transfer_history" ADD CONSTRAINT "production_transfer_history_to_factory_id_fkey" FOREIGN KEY ("to_factory_id") REFERENCES "factories"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "production_transfer_history" ADD CONSTRAINT "production_transfer_history_authorized_by_id_fkey" FOREIGN KEY ("authorized_by_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "production_hourly_data" ADD CONSTRAINT "production_hourly_data_production_record_id_fkey" FOREIGN KEY ("production_record_id") REFERENCES "production_records"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "digital_production_forms" ADD CONSTRAINT "digital_production_forms_line_id_fkey" FOREIGN KEY ("line_id") REFERENCES "lines"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "digital_production_forms" ADD CONSTRAINT "digital_production_forms_created_by_id_fkey" FOREIGN KEY ("created_by_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "digital_production_forms" ADD CONSTRAINT "digital_production_forms_updated_by_id_fkey" FOREIGN KEY ("updated_by_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "approval_workflow_steps" ADD CONSTRAINT "approval_workflow_steps_workflow_id_fkey" FOREIGN KEY ("workflow_id") REFERENCES "approval_workflows"("id") ON DELETE CASCADE ON UPDATE CASCADE;

@@ -1,0 +1,2 @@
+export const FACTORY_REPOSITORY = Symbol('FACTORY_REPOSITORY');
+export const FACTORY_SERVICE = Symbol('FACTORY_SERVICE');

@@ -1,10 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Group as PrismaGroup, GroupLeader as PrismaGroupLeader, Prisma } from '@prisma/client';
-import prisma from 'src/share/components/prisma';
 import {
-  GroupCondDTO,
-  PaginationDTO,
-} from './group.dto';
+  Group as PrismaGroup,
+  GroupLeader as PrismaGroupLeader,
+  Prisma,
+} from '@prisma/client';
+import prisma from 'src/share/components/prisma';
+import { GroupCondDTO, PaginationDTO } from './group.dto';
 import { Group, GroupLeader } from './group.model';
 import { IGroupRepository } from './group.port';
 
@@ -129,7 +130,7 @@ export class GroupPrismaRepository implements IGroupRepository {
       throw new Error(`Failed to find group by conditions: ${error.message}`);
     }
   }
-    
+
   async listGroups(
     conditions: GroupCondDTO,
     pagination: PaginationDTO,
@@ -162,10 +163,7 @@ export class GroupPrismaRepository implements IGroupRepository {
               },
               where: {
                 // Chỉ lấy các leader hiện tại (chưa kết thúc hoặc chưa thiết lập ngày kết thúc)
-                OR: [
-                  { endDate: null },
-                  { endDate: { gt: new Date() } },
-                ],
+                OR: [{ endDate: null }, { endDate: { gt: new Date() } }],
               },
             },
           },
@@ -177,10 +175,7 @@ export class GroupPrismaRepository implements IGroupRepository {
         total,
       };
     } catch (error) {
-      this.logger.error(
-        `Error listing groups: ${error.message}`,
-        error.stack,
-      );
+      this.logger.error(`Error listing groups: ${error.message}`, error.stack);
       throw new Error(`Failed to list groups: ${error.message}`);
     }
   }
@@ -199,10 +194,7 @@ export class GroupPrismaRepository implements IGroupRepository {
         },
       });
     } catch (error) {
-      this.logger.error(
-        `Error inserting group: ${error.message}`,
-        error.stack,
-      );
+      this.logger.error(`Error inserting group: ${error.message}`, error.stack);
       throw new Error(`Failed to insert group: ${error.message}`);
     }
   }
@@ -213,8 +205,10 @@ export class GroupPrismaRepository implements IGroupRepository {
       const updateData: Prisma.GroupUpdateInput = {};
 
       if (dto.name !== undefined) updateData.name = dto.name;
-      if (dto.description !== undefined) updateData.description = dto.description;
-      if (dto.teamId !== undefined) updateData.team = { connect: { id: dto.teamId } };
+      if (dto.description !== undefined)
+        updateData.description = dto.description;
+      if (dto.teamId !== undefined)
+        updateData.team = { connect: { id: dto.teamId } };
       if (dto.updatedAt) updateData.updatedAt = dto.updatedAt;
 
       await prisma.group.update({
@@ -243,19 +237,15 @@ export class GroupPrismaRepository implements IGroupRepository {
       throw new Error(`Failed to delete group: ${error.message}`);
     }
   }
-   
-    
-    // ========== GroupLeader Methods ==========
+
+  // ========== GroupLeader Methods ==========
   async getGroupLeaders(groupId: string): Promise<GroupLeader[]> {
     try {
       const data = await prisma.groupLeader.findMany({
-        where: { 
+        where: {
           groupId,
           // Chỉ lấy các leader hiện tại (chưa kết thúc hoặc chưa thiết lập ngày kết thúc)
-          OR: [
-            { endDate: null },
-            { endDate: { gt: new Date() } },
-          ],
+          OR: [{ endDate: null }, { endDate: { gt: new Date() } }],
         },
         include: {
           user: true,
@@ -355,8 +345,7 @@ export class GroupPrismaRepository implements IGroupRepository {
       throw new Error(`Failed to update group leader: ${error.message}`);
     }
   }
-    
-    
+
   async removeGroupLeader(groupId: string, userId: string): Promise<void> {
     try {
       // Không xóa hẳn, chỉ cập nhật ngày kết thúc
@@ -408,7 +397,9 @@ export class GroupPrismaRepository implements IGroupRepository {
         `Error checking if group ${groupId} has production rates: ${error.message}`,
         error.stack,
       );
-      throw new Error(`Failed to check if group has production rates: ${error.message}`);
+      throw new Error(
+        `Failed to check if group has production rates: ${error.message}`,
+      );
     }
   }
 
@@ -425,10 +416,7 @@ export class GroupPrismaRepository implements IGroupRepository {
               user: true,
             },
             where: {
-              OR: [
-                { endDate: null },
-                { endDate: { gt: new Date() } },
-              ],
+              OR: [{ endDate: null }, { endDate: { gt: new Date() } }],
             },
           },
           users: true,
@@ -448,21 +436,23 @@ export class GroupPrismaRepository implements IGroupRepository {
       // Tính toán các chỉ số năng suất
       const totalUsers = group.users.length;
       const bagRates = group.bagRates;
-      const avgOutputRate = bagRates.length > 0
-        ? bagRates.reduce((sum, rate) => sum + rate.outputRate, 0) / bagRates.length
-        : 0;
-      
+      const avgOutputRate =
+        bagRates.length > 0
+          ? bagRates.reduce((sum, rate) => sum + rate.outputRate, 0) /
+            bagRates.length
+          : 0;
+
       // Tìm mẫu túi có năng suất cao nhất và thấp nhất
       let highestRate = null;
       let lowestRate = null;
-      
+
       if (bagRates.length > 0) {
-        highestRate = bagRates.reduce((prev, current) => 
-          prev.outputRate > current.outputRate ? prev : current
+        highestRate = bagRates.reduce((prev, current) =>
+          prev.outputRate > current.outputRate ? prev : current,
         );
-        
-        lowestRate = bagRates.reduce((prev, current) => 
-          prev.outputRate < current.outputRate ? prev : current
+
+        lowestRate = bagRates.reduce((prev, current) =>
+          prev.outputRate < current.outputRate ? prev : current,
         );
       }
 
@@ -470,7 +460,7 @@ export class GroupPrismaRepository implements IGroupRepository {
       return {
         ...this._toGroupModel(group),
         teamName: group.team.name,
-        leaders: group.leaders.map(leader => ({
+        leaders: group.leaders.map((leader) => ({
           userId: leader.userId,
           fullName: leader.user.fullName,
           isPrimary: leader.isPrimary,
@@ -480,16 +470,20 @@ export class GroupPrismaRepository implements IGroupRepository {
           totalUsers,
           totalBagRates: bagRates.length,
           avgOutputRate,
-          highestRate: highestRate ? {
-            handBagCode: highestRate.handBag.code,
-            handBagName: highestRate.handBag.name,
-            outputRate: highestRate.outputRate,
-          } : null,
-          lowestRate: lowestRate ? {
-            handBagCode: lowestRate.handBag.code,
-            handBagName: lowestRate.handBag.name,
-            outputRate: lowestRate.outputRate,
-          } : null,
+          highestRate: highestRate
+            ? {
+                handBagCode: highestRate.handBag.code,
+                handBagName: highestRate.handBag.name,
+                outputRate: highestRate.outputRate,
+              }
+            : null,
+          lowestRate: lowestRate
+            ? {
+                handBagCode: lowestRate.handBag.code,
+                handBagName: lowestRate.handBag.name,
+                outputRate: lowestRate.outputRate,
+              }
+            : null,
         },
       };
     } catch (error) {
@@ -497,12 +491,12 @@ export class GroupPrismaRepository implements IGroupRepository {
         `Error getting group with performance stats ${groupId}: ${error.message}`,
         error.stack,
       );
-      throw new Error(`Failed to get group with performance stats: ${error.message}`);
+      throw new Error(
+        `Failed to get group with performance stats: ${error.message}`,
+      );
     }
   }
-    
-    
-    
+
   async listGroupsWithPerformanceStats(
     conditions: GroupCondDTO,
     pagination: PaginationDTO,
@@ -535,10 +529,7 @@ export class GroupPrismaRepository implements IGroupRepository {
               user: true,
             },
             where: {
-              OR: [
-                { endDate: null },
-                { endDate: { gt: new Date() } },
-              ],
+              OR: [{ endDate: null }, { endDate: { gt: new Date() } }],
             },
           },
           users: true,
@@ -552,24 +543,26 @@ export class GroupPrismaRepository implements IGroupRepository {
       });
 
       // Tính toán các chỉ số năng suất cho từng nhóm
-      const groupsWithStats = groups.map(group => {
+      const groupsWithStats = groups.map((group) => {
         const totalUsers = group.users.length;
         const bagRates = group.bagRates;
-        const avgOutputRate = bagRates.length > 0
-          ? bagRates.reduce((sum, rate) => sum + rate.outputRate, 0) / bagRates.length
-          : 0;
-        
+        const avgOutputRate =
+          bagRates.length > 0
+            ? bagRates.reduce((sum, rate) => sum + rate.outputRate, 0) /
+              bagRates.length
+            : 0;
+
         // Tìm mẫu túi có năng suất cao nhất và thấp nhất
         let highestRate = null;
         let lowestRate = null;
-        
+
         if (bagRates.length > 0) {
-          highestRate = bagRates.reduce((prev, current) => 
-            prev.outputRate > current.outputRate ? prev : current
+          highestRate = bagRates.reduce((prev, current) =>
+            prev.outputRate > current.outputRate ? prev : current,
           );
-          
-          lowestRate = bagRates.reduce((prev, current) => 
-            prev.outputRate < current.outputRate ? prev : current
+
+          lowestRate = bagRates.reduce((prev, current) =>
+            prev.outputRate < current.outputRate ? prev : current,
           );
         }
 
@@ -577,7 +570,7 @@ export class GroupPrismaRepository implements IGroupRepository {
         return {
           ...this._toGroupModel(group),
           teamName: group.team.name,
-          leaders: group.leaders.map(leader => ({
+          leaders: group.leaders.map((leader) => ({
             userId: leader.userId,
             fullName: leader.user.fullName,
             isPrimary: leader.isPrimary,
@@ -587,16 +580,20 @@ export class GroupPrismaRepository implements IGroupRepository {
             totalUsers,
             totalBagRates: bagRates.length,
             avgOutputRate,
-            highestRate: highestRate ? {
-              handBagCode: highestRate.handBag.code,
-              handBagName: highestRate.handBag.name,
-              outputRate: highestRate.outputRate,
-            } : null,
-            lowestRate: lowestRate ? {
-              handBagCode: lowestRate.handBag.code,
-              handBagName: lowestRate.handBag.name,
-              outputRate: lowestRate.outputRate,
-            } : null,
+            highestRate: highestRate
+              ? {
+                  handBagCode: highestRate.handBag.code,
+                  handBagName: highestRate.handBag.name,
+                  outputRate: highestRate.outputRate,
+                }
+              : null,
+            lowestRate: lowestRate
+              ? {
+                  handBagCode: lowestRate.handBag.code,
+                  handBagName: lowestRate.handBag.name,
+                  outputRate: lowestRate.outputRate,
+                }
+              : null,
           },
         };
       });
@@ -610,7 +607,9 @@ export class GroupPrismaRepository implements IGroupRepository {
         `Error listing groups with performance stats: ${error.message}`,
         error.stack,
       );
-      throw new Error(`Failed to list groups with performance stats: ${error.message}`);
+      throw new Error(
+        `Failed to list groups with performance stats: ${error.message}`,
+      );
     }
   }
-} 
+}

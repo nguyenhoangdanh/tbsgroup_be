@@ -39,7 +39,7 @@ export const bagGroupRateCondDTOSchema = z.object({
 });
 
 export type BagGroupRateCondDTO = z.infer<typeof bagGroupRateCondDTOSchema>;
-``
+
 export const paginationDTOSchema = z.object({
   page: z.number().int().positive().default(1),
   limit: z.number().int().positive().max(100).default(10),
@@ -48,3 +48,27 @@ export const paginationDTOSchema = z.object({
 });
 
 export type PaginationDTO = z.infer<typeof paginationDTOSchema>;
+
+
+
+// Schema cho item trong batch
+export const groupRateItemSchema = z.object({
+  groupId: z.string().uuid(),
+  outputRate: z.number().min(0, 'Năng suất không thể là số âm'),
+  notes: z.string().nullable().optional(),
+});
+
+export type GroupRateItem = z.infer<typeof groupRateItemSchema>;
+
+// Schema cho batch create DTO
+export const batchCreateBagGroupRateDTOSchema = z.object({
+  handBagId: z.string().uuid(),
+  groupRates: z.array(groupRateItemSchema).nonempty('Phải có ít nhất một nhóm'),
+});
+
+export type BatchCreateBagGroupRateDTO = z.infer<typeof batchCreateBagGroupRateDTOSchema>;
+
+// Validation utility function
+export const validateBatchCreateDTO = (data: unknown): BatchCreateBagGroupRateDTO => {
+  return batchCreateBagGroupRateDTOSchema.parse(data);
+};

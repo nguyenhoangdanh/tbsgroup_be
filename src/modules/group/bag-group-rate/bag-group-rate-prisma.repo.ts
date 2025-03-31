@@ -1,19 +1,22 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { BagGroupRate as PrismaBagGroupRate, Prisma } from '@prisma/client';
 import prisma from 'src/share/components/prisma';
-import {
-  BagGroupRateCondDTO,
-  PaginationDTO,
-} from './bag-group-rate.dto';
-import { BagGroupRate } from './bag-group-rate.model';
+import { BagGroupRateCondDTO, PaginationDTO } from './bag-group-rate.dto';
+import { BagGroupRate, BagGroupRateWithName } from './bag-group-rate.model';
 import { IBagGroupRateRepository } from './bag-group-rate.port';
+import { isValidUUID } from 'src/utils/uuid-utils';
 
 @Injectable()
 export class BagGroupRatePrismaRepository implements IBagGroupRateRepository {
   private readonly logger = new Logger(BagGroupRatePrismaRepository.name);
 
   // ========== Private Utility Methods ==========
-  private _toBagGroupRateModel(data: PrismaBagGroupRate): BagGroupRate {
+  private _toBagGroupRateModel(
+    data: PrismaBagGroupRate & {
+      handBag?: any;
+      group?: any;
+    },
+  ): BagGroupRateWithName {
     return {
       id: data.id,
       handBagId: data.handBagId,
@@ -23,6 +26,11 @@ export class BagGroupRatePrismaRepository implements IBagGroupRateRepository {
       active: data.active,
       createdAt: new Date(data.createdAt),
       updatedAt: new Date(data.updatedAt),
+
+      handBagName: data.handBag?.name,
+      groupName: data.group?.name,
+      handBagCode: data.handBag?.code,
+      groupCode: data.group?.code,
     };
   }
 
@@ -39,18 +47,48 @@ export class BagGroupRatePrismaRepository implements IBagGroupRateRepository {
       whereClause.groupId = conditions.groupId;
     }
 
-    if (conditions.active !== undefined) {
-      whereClause.active = conditions.active;
-    }
-
+    // if (conditions.active !== undefined) {
+    //   // Handle various formats of active condition
+    //   if (typeof conditions.active === 'string') {
+    //     const lowerActive = conditions.active.toLowerCase();
+    //     whereClause.active = lowerActive === 'true' || lowerActive === '1';
+    //   } else if (typeof conditions.active === 'boolean') {
+    //     whereClause.active = conditions.active;
+    //   } else if (typeof conditions.active === 'number') {
+    //     whereClause.active = conditions.active === 1;
+    //   }
+    // }
     return whereClause;
   }
 
   // ========== Repository Implementation ==========
+
   async getBagGroupRate(id: string): Promise<BagGroupRate | null> {
     try {
+      // Validate UUID format before querying
+      if (!isValidUUID(id)) {
+        this.logger.warn(`Invalid UUID format: ${id}`);
+        return null;
+      }
+
       const data = await prisma.bagGroupRate.findUnique({
         where: { id },
+        include: {
+          handBag: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+            },
+          },
+          group: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+            },
+          },
+        },
       });
 
       return data ? this._toBagGroupRateModel(data) : null;
@@ -63,13 +101,40 @@ export class BagGroupRatePrismaRepository implements IBagGroupRateRepository {
     }
   }
 
-  async findBagGroupRate(handBagId: string, groupId: string): Promise<BagGroupRate | null> {
+  async findBagGroupRate(
+    handBagId: string,
+    groupId: string,
+  ): Promise<BagGroupRate | null> {
     try {
+      // Validate UUID format for both IDs
+      if (!isValidUUID(handBagId) || !isValidUUID(groupId)) {
+        this.logger.warn(
+          `Invalid UUID format: handBagId=${handBagId}, groupId=${groupId}`,
+        );
+        return null;
+      }
+
       const data = await prisma.bagGroupRate.findUnique({
         where: {
           handBagId_groupId: {
             handBagId,
             groupId,
+          },
+        },
+        include: {
+          handBag: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+            },
+          },
+          group: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+            },
           },
         },
       });
@@ -151,7 +216,10 @@ export class BagGroupRatePrismaRepository implements IBagGroupRateRepository {
     }
   }
 
-  async updateBagGroupRate(id: string, dto: Partial<BagGroupRate>): Promise<void> {
+  async updateBagGroupRate(
+    id: string,
+    dto: Partial<BagGroupRate>,
+  ): Promise<void> {
     try {
       // Filter out undefined values to avoid unintended updates
       const updateData: Prisma.BagGroupRateUpdateInput = {};
@@ -176,55 +244,59 @@ export class BagGroupRatePrismaRepository implements IBagGroupRateRepository {
 
   async deleteBagGroupRate(id: string): Promise<void> {
     try {
-        await prisma.bagGroupRate.delete({
-          where: { id },
-        });
-      } catch (error) {
-        this.logger.error(
-          `Error deleting bag group rate ${id}: ${error.message}`,
-          error.stack,
-        );
-        throw new Error(`Failed to delete bag group rate: ${error.message}`);
-      }
-    }
-  
-    async getBagGroupRatesForHandBag(handBagId: string): Promise<BagGroupRate[]> {
-      try {
-        const data = await prisma.bagGroupRate.findMany({
-          where: { handBagId, active: true },
-          include: {
-            group: true,
-          },
-          orderBy: { outputRate: 'desc' },
-        });
-  
-        return data.map(this._toBagGroupRateModel);
-      } catch (error) {
-        this.logger.error(
-          `Error getting bag group rates for handBag ${handBagId}: ${error.message}`,
-          error.stack,
-        );
-        throw new Error(`Failed to get bag group rates for handBag: ${error.message}`);
-      }
-    }
-  
-    async getBagGroupRatesForGroup(groupId: string): Promise<BagGroupRate[]> {
-      try {
-        const data = await prisma.bagGroupRate.findMany({
-          where: { groupId, active: true },
-          include: {
-            handBag: true,
-          },
-          orderBy: { outputRate: 'desc' },
-        });
-  
-        return data.map(this._toBagGroupRateModel);
-      } catch (error) {
-        this.logger.error(
-          `Error getting bag group rates for group ${groupId}: ${error.message}`,
-          error.stack,
-        );
-        throw new Error(`Failed to get bag group rates for group: ${error.message}`);
-      }
+      await prisma.bagGroupRate.delete({
+        where: { id },
+      });
+    } catch (error) {
+      this.logger.error(
+        `Error deleting bag group rate ${id}: ${error.message}`,
+        error.stack,
+      );
+      throw new Error(`Failed to delete bag group rate: ${error.message}`);
     }
   }
+
+  async getBagGroupRatesForHandBag(handBagId: string): Promise<BagGroupRate[]> {
+    try {
+      const data = await prisma.bagGroupRate.findMany({
+        where: { handBagId, active: true },
+        include: {
+          group: true,
+        },
+        orderBy: { outputRate: 'desc' },
+      });
+
+      return data.map(this._toBagGroupRateModel);
+    } catch (error) {
+      this.logger.error(
+        `Error getting bag group rates for handBag ${handBagId}: ${error.message}`,
+        error.stack,
+      );
+      throw new Error(
+        `Failed to get bag group rates for handBag: ${error.message}`,
+      );
+    }
+  }
+
+  async getBagGroupRatesForGroup(groupId: string): Promise<BagGroupRate[]> {
+    try {
+      const data = await prisma.bagGroupRate.findMany({
+        where: { groupId, active: true },
+        include: {
+          handBag: true,
+        },
+        orderBy: { outputRate: 'desc' },
+      });
+
+      return data.map(this._toBagGroupRateModel);
+    } catch (error) {
+      this.logger.error(
+        `Error getting bag group rates for group ${groupId}: ${error.message}`,
+        error.stack,
+      );
+      throw new Error(
+        `Failed to get bag group rates for group: ${error.message}`,
+      );
+    }
+  }
+}

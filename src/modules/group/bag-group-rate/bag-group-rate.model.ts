@@ -1,9 +1,15 @@
 import { z } from 'zod';
 
 // Business errors
-export const ErrBagGroupRateNotFound = new Error('Không tìm thấy năng suất nhóm cho túi này');
-export const ErrBagGroupRateExists = new Error('Năng suất nhóm cho túi này đã tồn tại');
-export const ErrPermissionDenied = new Error('Bạn không có quyền thực hiện hành động này');
+export const ErrBagGroupRateNotFound = new Error(
+  'Không tìm thấy năng suất nhóm cho túi này',
+);
+export const ErrBagGroupRateExists = new Error(
+  'Năng suất nhóm cho túi này đã tồn tại',
+);
+export const ErrPermissionDenied = new Error(
+  'Bạn không có quyền thực hiện hành động này',
+);
 export const ErrGroupNotFound = new Error('Không tìm thấy nhóm');
 export const ErrHandBagNotFound = new Error('Không tìm thấy túi xách');
 
@@ -20,3 +26,13 @@ export const bagGroupRateSchema = z.object({
 });
 
 export type BagGroupRate = z.infer<typeof bagGroupRateSchema>;
+
+export const bagGroupRateWithNameSchema = bagGroupRateSchema.extend({
+  handBagName: z.string().optional(),
+  groupName: z.string().optional(),
+
+  handBagCode: z.string().optional(),
+  groupCode: z.string().optional(),
+});
+
+export type BagGroupRateWithName = z.infer<typeof bagGroupRateWithNameSchema>;

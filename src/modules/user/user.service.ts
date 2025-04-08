@@ -65,8 +65,18 @@ export class UserService implements IUserService {
 
       // Lấy defaultRoleId từ code vai trò
       let defaultRoleId: string;
-      if (dto.defaultRoleCode) {
-        const role = await this.roleService.getRoleByCode(dto.defaultRoleCode);
+      // if (dto.defaultRoleCode) {
+      //   const role = await this.roleService.getRoleByCode(dto.defaultRoleCode);
+      //   defaultRoleId = role.id;
+      // } else {
+      //   // Nếu không có defaultRoleCode, lấy ID của vai trò WORKER
+      //   const defaultRole = await this.roleService.getRoleByCode(
+      //     UserRole.WORKER,
+      //   );
+      //   defaultRoleId = defaultRole.id;
+      // }
+      if (dto.roleId) {
+        const role = await this.roleService.getRole(dto.roleId);
         defaultRoleId = role.id;
       } else {
         // Nếu không có defaultRoleCode, lấy ID của vai trò WORKER
@@ -82,7 +92,7 @@ export class UserService implements IUserService {
         password: hashPassword,
         username: dto.username,
         id: newId,
-        status: UserStatus.PENDING_ACTIVATION,
+        status: dto.status || UserStatus.PENDING_ACTIVATION,
         salt: salt,
         roleId: defaultRoleId, // Sử dụng defaultRoleId thay vì role
         createdAt: new Date(),

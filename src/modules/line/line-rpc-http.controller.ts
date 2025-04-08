@@ -1,20 +1,27 @@
-import { Controller, Inject, Get, Post, Delete, Param, Body, HttpCode, HttpStatus, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Inject,
+  Get,
+  Param,
+  HttpCode,
+  HttpStatus,
+  UseGuards,
+} from '@nestjs/common';
 import { RemoteAuthGuard } from 'src/share/guard';
 import { LINE_SERVICE } from './line.di-token';
 import { ILineService } from './line.port';
 import { ErrLineNotFound } from './line.model';
 import { AppError } from 'src/share';
-import { Line } from './line.model';
 
-@Controller('internal/lines')  // Internal API endpoint path
+@Controller('internal/lines') // Internal API endpoint path
 @UseGuards(RemoteAuthGuard) // Apply RemoteAuthGuard to all endpoints
 export class LineRpcHttpController {
   constructor(
-    @Inject(LINE_SERVICE) private readonly lineService: ILineService
+    @Inject(LINE_SERVICE) private readonly lineService: ILineService,
   ) {}
 
   // Internal API endpoints for microservice communication
-  
+
   @Get(':id')
   @HttpCode(HttpStatus.OK)
   async getLineById(@Param('id') id: string) {

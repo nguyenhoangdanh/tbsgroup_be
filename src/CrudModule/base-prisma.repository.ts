@@ -6,11 +6,13 @@ import { ICrudRepository } from './crud.interface';
  * Base Prisma repository implementing common CRUD operations
  */
 @Injectable()
-export abstract class BasePrismaRepository<T, C, U> implements ICrudRepository<T, C, U> {
+export abstract class BasePrismaRepository<T, C, U>
+  implements ICrudRepository<T, C, U>
+{
   protected readonly logger: Logger;
   protected readonly entityName: string;
   protected readonly prismaModel: any;
-  
+
   constructor(entityName: string, prismaModel: any) {
     this.entityName = entityName;
     this.prismaModel = prismaModel;
@@ -46,7 +48,7 @@ export abstract class BasePrismaRepository<T, C, U> implements ICrudRepository<T
       );
       throw AppError.from(
         new Error(`Failed to get ${this.entityName}: ${error.message}`),
-        500
+        500,
       );
     }
   }
@@ -68,8 +70,10 @@ export abstract class BasePrismaRepository<T, C, U> implements ICrudRepository<T
         error.stack,
       );
       throw AppError.from(
-        new Error(`Failed to find ${this.entityName} by conditions: ${error.message}`),
-        500
+        new Error(
+          `Failed to find ${this.entityName} by conditions: ${error.message}`,
+        ),
+        500,
       );
     }
   }
@@ -77,10 +81,7 @@ export abstract class BasePrismaRepository<T, C, U> implements ICrudRepository<T
   /**
    * List entities with pagination
    */
-  async list(
-    conditions: any,
-    pagination: PagingDTO 
-  ): Promise<Paginated<T>> {
+  async list(conditions: any, pagination: PagingDTO): Promise<Paginated<T>> {
     try {
       // Validate pagination parameters
       const page = Math.max(1, pagination.page || 1);
@@ -107,7 +108,7 @@ export abstract class BasePrismaRepository<T, C, U> implements ICrudRepository<T
         paging: {
           page,
           limit,
-          total
+          total,
         },
         total,
       };
@@ -118,7 +119,7 @@ export abstract class BasePrismaRepository<T, C, U> implements ICrudRepository<T
       );
       throw AppError.from(
         new Error(`Failed to list ${this.entityName}s: ${error.message}`),
-        500
+        500,
       );
     }
   }
@@ -130,7 +131,7 @@ export abstract class BasePrismaRepository<T, C, U> implements ICrudRepository<T
     try {
       // Prepare data for insertion
       const createData = this._prepareCreateData(entity);
-      
+
       // Create in database
       const data = await this.prismaModel.create({
         data: createData,
@@ -144,7 +145,7 @@ export abstract class BasePrismaRepository<T, C, U> implements ICrudRepository<T
       );
       throw AppError.from(
         new Error(`Failed to insert ${this.entityName}: ${error.message}`),
-        500
+        500,
       );
     }
   }
@@ -156,7 +157,7 @@ export abstract class BasePrismaRepository<T, C, U> implements ICrudRepository<T
     try {
       // Prepare data for update
       const updateData = this._prepareUpdateData(dto);
-      
+
       // Always include updatedAt if the model has it
       if ('updatedAt' in this.prismaModel.fields) {
         updateData.updatedAt = new Date();
@@ -173,7 +174,7 @@ export abstract class BasePrismaRepository<T, C, U> implements ICrudRepository<T
       );
       throw AppError.from(
         new Error(`Failed to update ${this.entityName}: ${error.message}`),
-        500
+        500,
       );
     }
   }
@@ -193,7 +194,7 @@ export abstract class BasePrismaRepository<T, C, U> implements ICrudRepository<T
       );
       throw AppError.from(
         new Error(`Failed to delete ${this.entityName}: ${error.message}`),
-        500
+        500,
       );
     }
   }
@@ -205,15 +206,15 @@ export abstract class BasePrismaRepository<T, C, U> implements ICrudRepository<T
   protected _prepareCreateData(entity: any): any {
     // Add timestamps by default if the model supports them
     const data = { ...entity };
-    
+
     if ('createdAt' in this.prismaModel.fields && !data.createdAt) {
       data.createdAt = new Date();
     }
-    
+
     if ('updatedAt' in this.prismaModel.fields && !data.updatedAt) {
       data.updatedAt = new Date();
     }
-    
+
     return data;
   }
 
@@ -224,13 +225,13 @@ export abstract class BasePrismaRepository<T, C, U> implements ICrudRepository<T
   protected _prepareUpdateData(dto: Partial<T>): any {
     // Filter out undefined values
     const updateData: any = {};
-    
+
     Object.entries(dto).forEach(([key, value]) => {
       if (value !== undefined) {
         updateData[key] = value;
       }
     });
-    
+
     return updateData;
   }
 }

@@ -1,12 +1,28 @@
-import { Controller, Inject, Get, Post, Delete, Patch, Param, Body, HttpCode, HttpStatus, Query, Request, UseGuards } from '@nestjs/common';
+import {
+  Inject,
+  Get,
+  Post,
+  Delete,
+  Patch,
+  Param,
+  Body,
+  HttpCode,
+  HttpStatus,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
 import { Line } from './line.model';
-import { LineCreateDTO, LineUpdateDTO, LineCondDTO, LineManagerDTO } from './line.dto';
+import {
+  LineCreateDTO,
+  LineUpdateDTO,
+  LineCondDTO,
+  LineManagerDTO,
+} from './line.dto';
 import { CRUD_OPTIONS, CrudController } from 'src/CrudModule/crud.decorator';
 import { LINE_SERVICE } from './line.di-token';
-import { AppError, ReqWithRequester, UserRole } from 'src/share';
+import { ReqWithRequester } from 'src/share';
 import { ILineService } from './line.port';
-import { ErrLineNotFound } from './line.model';
-import { RemoteAuthGuard, Roles, RolesGuard } from 'src/share/guard';
+import { RemoteAuthGuard } from 'src/share/guard';
 import { BaseCrudController } from 'src/CrudModule/base-crud.controller';
 
 @CrudController({
@@ -17,10 +33,15 @@ import { BaseCrudController } from 'src/CrudModule/base-crud.controller';
   conditionDto: LineCondDTO, // Using the class directly
 })
 @UseGuards(RemoteAuthGuard) // Áp dụng RemoteAuthGuard cho tất cả các endpoints
-export class LineCrudController extends BaseCrudController<Line, LineCreateDTO, LineUpdateDTO, LineCondDTO> {
+export class LineCrudController extends BaseCrudController<
+  Line,
+  LineCreateDTO,
+  LineUpdateDTO,
+  LineCondDTO
+> {
   constructor(
     @Inject(LINE_SERVICE) private readonly lineService: ILineService,
-    @Inject(CRUD_OPTIONS) options: any
+    @Inject(CRUD_OPTIONS) options: any,
   ) {
     super(lineService, options);
   }

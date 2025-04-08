@@ -6,7 +6,9 @@ import { ICrudRepository, ICrudService, PagingDTO } from './crud.interface';
  * Base service class implementing common CRUD operations
  */
 @Injectable()
-export abstract class BaseCrudService<T, C, U> implements ICrudService<T, C, U> {
+export abstract class BaseCrudService<T, C, U>
+  implements ICrudService<T, C, U>
+{
   protected readonly logger: Logger;
 
   constructor(
@@ -62,15 +64,15 @@ export abstract class BaseCrudService<T, C, U> implements ICrudService<T, C, U> 
     try {
       // Validate user permissions
       await this.validateCreate(requester, dto);
-      
+
       // Custom validation can be added in subclasses
-      
+
       // Create entity in repository
       const id = await this.repository.insert(dto);
-      
+
       // Log the event
       this.logEvent('Created', id, requester);
-      
+
       return id;
     } catch (error) {
       this.handleError(
@@ -82,21 +84,17 @@ export abstract class BaseCrudService<T, C, U> implements ICrudService<T, C, U> 
     }
   }
 
-  async updateEntity(
-    requester: Requester,
-    id: string,
-    dto: U,
-  ): Promise<void> {
+  async updateEntity(requester: Requester, id: string, dto: U): Promise<void> {
     try {
       // Get existing entity
       const entity = await this.getEntity(id);
-      
+
       // Validate permissions
       await this.validateUpdate(requester, entity, dto);
-      
+
       // Update entity
       await this.repository.update(id, dto as unknown as Partial<T>);
-      
+
       // Log event
       this.logEvent('Updated', id, requester);
     } catch (error) {
@@ -112,13 +110,13 @@ export abstract class BaseCrudService<T, C, U> implements ICrudService<T, C, U> 
     try {
       // Get existing entity
       const entity = await this.getEntity(id);
-      
+
       // Validate permissions
       await this.validateDelete(requester, entity);
-      
+
       // Delete entity
       await this.repository.delete(id);
-      
+
       // Log event
       this.logEvent('Deleted', id, requester);
     } catch (error) {
@@ -131,10 +129,7 @@ export abstract class BaseCrudService<T, C, U> implements ICrudService<T, C, U> 
   }
 
   // Hook methods to be overridden by implementing services
-  protected async validateCreate(
-    requester: Requester,
-    dto: C,
-  ): Promise<void> {
+  protected async validateCreate(requester: Requester, dto: C): Promise<void> {
     // By default, check if user has permission to create
     await this.checkPermission(requester, 'create');
   }
@@ -189,14 +184,11 @@ export abstract class BaseCrudService<T, C, U> implements ICrudService<T, C, U> 
     statusCode: number = 400,
   ): never {
     this.logger.error(`${message}: ${error.message}`, error.stack);
-    
+
     if (error instanceof AppError) {
       throw error;
     }
-    
-    throw AppError.from(
-      new Error(`${message}: ${error.message}`),
-      statusCode,
-    );
+
+    throw AppError.from(new Error(`${message}: ${error.message}`), statusCode);
   }
 }

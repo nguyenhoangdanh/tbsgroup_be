@@ -17,6 +17,8 @@ export const userRegistrationDTOSchema = userSchema
     positionId: true,
     email: true,
     phone: true,
+    roleId: true,
+    status: true,
   })
   .partial({
     factoryId: true,

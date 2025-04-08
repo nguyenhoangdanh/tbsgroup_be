@@ -1,9 +1,9 @@
-import { 
-  applyDecorators, 
-  UseGuards, 
+import {
+  applyDecorators,
+  UseGuards,
   SetMetadata,
   Controller,
-  Type 
+  Type,
 } from '@nestjs/common';
 import { RemoteAuthGuard, RolesGuard } from 'src/share/guard';
 
@@ -37,7 +37,7 @@ export interface CrudControllerOptions {
  */
 export function CrudController(options: CrudControllerOptions) {
   const { path, roles = [] } = options;
-  
+
   // Default operations (все включены) - все endpoints доступны
   const endpoints = {
     getAll: !options.disableEndpoints?.getAll,
@@ -50,10 +50,10 @@ export function CrudController(options: CrudControllerOptions) {
   return applyDecorators(
     SetMetadata(CRUD_OPTIONS, {
       ...options,
-      endpoints
+      endpoints,
     }),
     SetMetadata(REQUIRED_ROLES, roles),
     Controller(path),
-    UseGuards(RemoteAuthGuard, RolesGuard)
+    UseGuards(RemoteAuthGuard, RolesGuard),
   );
 }

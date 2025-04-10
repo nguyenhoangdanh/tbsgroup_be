@@ -78,6 +78,13 @@ enum DepartmentType {
   FACTORY_OFFICE
 }
 
+// Enum mới để quản lý loại quyền truy cập
+enum PermissionType {
+  PAGE_ACCESS // Quyền truy cập vào trang
+  FEATURE_ACCESS // Quyền sử dụng tính năng
+  DATA_ACCESS // Quyền truy cập dữ liệu
+}
+
 // ==================== CORE MODELS ====================
 
 // Bảng quản lý người dùng
@@ -187,12 +194,53 @@ model Role {
   userDepartmentRoles   UserDepartment[]
   approvalWorkflowSteps ApprovalWorkflowStep[] // Quan hệ với các bước trong quy trình phê duyệt
   User                  User[]
+  permissions           RolePermission[]
 
   @@index([level], map: "idx_role_level")
   @@index([name])
   @@index([level])
   @@index([isSystem])
   @@map("roles")
+}
+
+// Bảng Permission - định nghĩa các quyền có trong hệ thống
+model Permission {
+  id          String         @id @default(uuid()) @map("id") @db.Uuid
+  code        String         @unique @map("code") @db.VarChar(100) // Mã quyền, ví dụ: "page:dashboard", "feature:export", etc.
+  name        String         @map("name") @db.VarChar(100)
+  description String?        @map("description") @db.Text
+  type        PermissionType @default(PAGE_ACCESS) @map("type")
+  module      String?        @map("module") @db.VarChar(50) // Module/phân hệ chứa quyền
+  isActive    Boolean        @default(true) @map("is_active")
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt   DateTime       @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  // Quan hệ
+  rolePermissions RolePermission[]
+
+  @@index([type])
+  @@index([module])
+  @@index([isActive])
+  @@map("permissions")
+}
+
+// Bảng nối giữa Role và Permission
+model RolePermission {
+  roleId         String   @map("role_id") @db.Uuid
+  permissionId   String   @map("permission_id") @db.Uuid
+  canGrant       Boolean  @default(false) @map("can_grant") // Có thể cấp quyền này cho người khác
+  grantCondition String?  @map("grant_condition") @db.Text // Điều kiện cấp quyền (JSON)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  // Quan hệ
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
 }
 
 // Bảng quản lý nhà máy

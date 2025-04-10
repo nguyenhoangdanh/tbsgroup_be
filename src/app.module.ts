@@ -18,6 +18,7 @@ import { GroupModule } from './modules/group/group.module';
 import { BagGroupRateModule } from './modules/group/bag-group-rate/bag-group-rate.module';
 import { LineModule } from './modules/line/line.module';
 import { TeamModule } from './modules/team/team.module';
+import { PermissionModule } from './modules/permission/permission.module';
 @Module({
   imports: [
     ServeStaticModule.forRoot({
@@ -41,6 +42,7 @@ import { TeamModule } from './modules/team/team.module';
     BagGroupRateModule,
     LineModule,
     TeamModule,
+    PermissionModule,
     // UploadModule,
   ],
   controllers: [AppController],

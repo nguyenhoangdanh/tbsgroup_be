@@ -19,6 +19,7 @@ import { BagGroupRateModule } from './modules/group/bag-group-rate/bag-group-rat
 import { LineModule } from './modules/line/line.module';
 import { TeamModule } from './modules/team/team.module';
 import { PermissionModule } from './modules/permission/permission.module';
+import { DigitalFormModule } from './modules/digital-form/digital-form.module';
 @Module({
   imports: [
     ServeStaticModule.forRoot({
@@ -43,7 +44,7 @@ import { PermissionModule } from './modules/permission/permission.module';
     LineModule,
     TeamModule,
     PermissionModule,
-    // UploadModule,
+    DigitalFormModule,
   ],
   controllers: [AppController],
   providers: [

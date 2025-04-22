@@ -6,7 +6,7 @@ import {
 } from '@prisma/client';
 import prisma from 'src/share/components/prisma';
 import { GroupCondDTO, PaginationDTO } from './group.dto';
-import { Group, GroupLeader } from './group.model';
+import { Group, GroupLeader, GroupWithUsers } from './group.model';
 import { IGroupRepository } from './group.port';
 
 @Injectable()
@@ -23,6 +23,17 @@ export class GroupPrismaRepository implements IGroupRepository {
       teamId: data.teamId,
       createdAt: new Date(data.createdAt),
       updatedAt: new Date(data.updatedAt),
+    };
+  }
+
+  private _toGroupWithUsersModel(
+    data: PrismaGroup & { users?: any[] },
+  ): GroupWithUsers {
+    const baseModel = this._toGroupModel(data);
+
+    return {
+      ...baseModel,
+      users: data.users || [],
     };
   }
 
@@ -87,9 +98,19 @@ export class GroupPrismaRepository implements IGroupRepository {
     try {
       const data = await prisma.group.findUnique({
         where: { id },
+        include: {
+          users: true, // Đảm bảo users được include
+          team: true,
+          leaders: {
+            include: { user: true },
+            where: {
+              OR: [{ endDate: null }, { endDate: { gt: new Date() } }],
+            },
+          },
+        },
       });
 
-      return data ? this._toGroupModel(data) : null;
+      return data ? this._toGroupWithUsersModel(data) : null;
     } catch (error) {
       this.logger.error(
         `Error fetching group ${id}: ${error.message}`,

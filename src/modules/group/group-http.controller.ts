@@ -52,6 +52,26 @@ export class GroupHttpController {
     };
   }
 
+  @Post(':id/users')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.TEAM_LEADER)
+  @HttpCode(HttpStatus.OK)
+  async addUsersToGroup(
+    @Request() req: ReqWithRequester,
+    @Param('id') id: string,
+    @Body() dto: { userIds: string[] },
+  ) {
+    const result = await this.groupService.addUsersToGroup(
+      req.requester,
+      id,
+      dto.userIds,
+    );
+    return {
+      success: true,
+      data: result,
+    };
+  }
+
   @Get()
   @HttpCode(HttpStatus.OK)
   async listGroups(
@@ -80,6 +100,26 @@ export class GroupHttpController {
     try {
       const group = await this.groupService.getGroup(id);
       return { success: true, data: group };
+    } catch (error) {
+      if (
+        error instanceof AppError &&
+        error.message === ErrGroupNotFound.message
+      ) {
+        throw AppError.from(ErrGroupNotFound, 404);
+      }
+      throw error;
+    }
+  }
+
+  @Get(':id/users')
+  @HttpCode(HttpStatus.OK)
+  async getGroupUsers(@Param('id') id: string) {
+    try {
+      const group = await this.groupService.getGroup(id);
+      return {
+        success: true,
+        data: group.users || [],
+      };
     } catch (error) {
       if (
         error instanceof AppError &&

@@ -7,11 +7,11 @@ import {
   GroupUpdateDTO,
   PaginationDTO,
 } from './group.dto';
-import { Group, GroupLeader } from './group.model';
+import { Group, GroupLeader, GroupWithUsers } from './group.model';
 
 // Interface cho repository
 export interface IGroupRepository {
-  getGroup(id: string): Promise<Group | null>;
+  getGroup(id: string): Promise<GroupWithUsers | null>;
   findGroupByCode(code: string): Promise<Group | null>;
   findGroupByCond(cond: GroupCondDTO): Promise<Group | null>;
   listGroups(
@@ -24,17 +24,21 @@ export interface IGroupRepository {
   insertGroup(group: Group): Promise<void>;
   updateGroup(id: string, dto: Partial<Group>): Promise<void>;
   deleteGroup(id: string): Promise<void>;
-  
+
   // GroupLeader methods
   getGroupLeaders(groupId: string): Promise<GroupLeader[]>;
   addGroupLeader(groupLeader: GroupLeader): Promise<void>;
-  updateGroupLeader(groupId: string, userId: string, dto: Partial<GroupLeader>): Promise<void>;
+  updateGroupLeader(
+    groupId: string,
+    userId: string,
+    dto: Partial<GroupLeader>,
+  ): Promise<void>;
   removeGroupLeader(groupId: string, userId: string): Promise<void>;
-  
+
   // Check if Group has any dependencies
   hasUsers(groupId: string): Promise<boolean>;
   hasProductionRates(groupId: string): Promise<boolean>;
-  
+
   // Group with statistics
   getGroupWithPerformanceStats(groupId: string): Promise<any>;
   listGroupsWithPerformanceStats(
@@ -55,7 +59,7 @@ export interface IGroupService {
     dto: GroupUpdateDTO,
   ): Promise<void>;
   deleteGroup(requester: Requester, id: string): Promise<void>;
-  getGroup(id: string): Promise<Group>;
+  getGroup(id: string): Promise<GroupWithUsers>;
   listGroups(
     conditions: GroupCondDTO,
     pagination: PaginationDTO,
@@ -65,7 +69,7 @@ export interface IGroupService {
     page: number;
     limit: number;
   }>;
-  
+
   // GroupLeader methods
   assignGroupLeader(
     requester: Requester,
@@ -83,7 +87,7 @@ export interface IGroupService {
     userId: string,
   ): Promise<void>;
   getGroupLeaders(groupId: string): Promise<GroupLeader[]>;
-  
+
   // Group performance
   getGroupPerformance(id: string): Promise<any>;
   listGroupsWithPerformance(
@@ -95,4 +99,10 @@ export interface IGroupService {
     page: number;
     limit: number;
   }>;
+
+  addUsersToGroup(
+    requester: Requester,
+    groupId: string,
+    userIds: string[],
+  ): Promise<{ success: number; failed: number }>;
 }

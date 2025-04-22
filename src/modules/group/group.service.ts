@@ -33,6 +33,7 @@ export class GroupService implements IGroupService {
     private readonly groupRepo: IGroupRepository,
   ) {}
 
+  // Trong group.service.ts
   async createGroup(
     requester: Requester,
     dto: GroupCreateDTO,
@@ -68,22 +69,57 @@ export class GroupService implements IGroupService {
         throw AppError.from(ErrGroupNameExists, 400);
       }
 
-      // Tạo nhóm mới
+      // Nếu có userIds, kiểm tra sự tồn tại của tất cả users
+      let validUserCount = 0;
+      if (dto.userIds && dto.userIds.length > 0) {
+        validUserCount = await prisma.user.count({
+          where: { id: { in: dto.userIds } },
+        });
+
+        if (validUserCount !== dto.userIds.length) {
+          throw AppError.from(
+            new Error('Một số người dùng không tồn tại'),
+            400,
+          );
+        }
+      }
+
+      // Sử dụng transaction để đảm bảo tính nguyên tử của thao tác
       const newId = uuidv4();
-      const newGroup: Group = {
-        id: newId,
-        code: dto.code,
-        name: dto.name,
-        description: dto.description || null,
-        teamId: dto.teamId,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
 
-      await this.groupRepo.insertGroup(newGroup);
-      this.logger.log(`New group created: ${dto.name} (${newId}) by ${requester.sub}`);
+      return await prisma.$transaction(
+        async (tx) => {
+          // Tạo nhóm mới
+          await tx.group.create({
+            data: {
+              id: newId,
+              code: dto.code,
+              name: dto.name,
+              description: dto.description || null,
+              teamId: dto.teamId,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+          });
 
-      return newId;
+          // Thêm người dùng vào nhóm nếu có
+          if (dto.userIds && dto.userIds.length > 0) {
+            await tx.user.updateMany({
+              where: { id: { in: dto.userIds } },
+              data: { groupId: newId },
+            });
+          }
+
+          this.logger.log(
+            `New group created: ${dto.name} (${newId}) by ${requester.sub} with ${dto.userIds?.length || 0} users`,
+          );
+
+          return newId;
+        },
+        {
+          timeout: 15000, // 15 giây để xử lý các nhóm với nhiều người dùng
+        },
+      );
     } catch (error) {
       this.logger.error(
         `Error during group creation: ${error.message}`,
@@ -94,13 +130,76 @@ export class GroupService implements IGroupService {
         throw error;
       }
 
+      throw AppError.from(new Error(`Lỗi khi tạo nhóm: ${error.message}`), 400);
+    }
+  }
+
+  async addUsersToGroup(
+    requester: Requester,
+    groupId: string,
+    userIds: string[],
+  ): Promise<{ success: number; failed: number }> {
+    try {
+      // Check permissions
+      if (
+        requester.role !== UserRole.ADMIN &&
+        requester.role !== UserRole.SUPER_ADMIN &&
+        requester.role !== UserRole.TEAM_LEADER &&
+        requester.role !== UserRole.GROUP_LEADER
+      ) {
+        throw AppError.from(ErrPermissionDenied, 403);
+      }
+
+      // Check if group exists
+      const group = await this.groupRepo.getGroup(groupId);
+      if (!group) {
+        throw AppError.from(ErrGroupNotFound, 404);
+      }
+
+      let successCount = 0;
+      let failedCount = 0;
+
+      // Update users in batches
+      const batchSize = 50;
+      for (let i = 0; i < userIds.length; i += batchSize) {
+        const batch = userIds.slice(i, i + batchSize);
+
+        try {
+          // Update users in this batch
+          const result = await prisma.user.updateMany({
+            where: { id: { in: batch } },
+            data: { groupId },
+          });
+
+          successCount += result.count;
+          failedCount += batch.length - result.count;
+        } catch (error) {
+          this.logger.error(`Error updating batch of users: ${error.message}`);
+          failedCount += batch.length;
+        }
+      }
+
+      this.logger.log(
+        `Users added to group ${groupId}: ${successCount} successful, ${failedCount} failed, by ${requester.sub}`,
+      );
+
+      return { success: successCount, failed: failedCount };
+    } catch (error) {
+      this.logger.error(
+        `Error adding users to group: ${error.message}`,
+        error.stack,
+      );
+
+      if (error instanceof AppError) {
+        throw error;
+      }
+
       throw AppError.from(
-        new Error(`Lỗi khi tạo nhóm: ${error.message}`),
+        new Error(`Lỗi khi thêm người dùng vào nhóm: ${error.message}`),
         400,
       );
     }
   }
-
 
   async updateGroup(
     requester: Requester,
@@ -208,13 +307,9 @@ export class GroupService implements IGroupService {
         throw error;
       }
 
-      throw AppError.from(
-        new Error(`Lỗi khi xóa nhóm: ${error.message}`),
-        400,
-      );
+      throw AppError.from(new Error(`Lỗi khi xóa nhóm: ${error.message}`), 400);
     }
   }
-
 
   async updateGroupLeader(
     requester: Requester,
@@ -244,7 +339,9 @@ export class GroupService implements IGroupService {
         updatedAt: new Date(),
       });
 
-      this.logger.log(`Group leader updated: ${userId} for group ${groupId} by ${requester.sub}`);
+      this.logger.log(
+        `Group leader updated: ${userId} for group ${groupId} by ${requester.sub}`,
+      );
     } catch (error) {
       this.logger.error(
         `Error updating group leader: ${error.message}`,
@@ -285,7 +382,9 @@ export class GroupService implements IGroupService {
 
       // Gỡ bỏ nhóm trưởng (cập nhật ngày kết thúc)
       await this.groupRepo.removeGroupLeader(groupId, userId);
-      this.logger.log(`Group leader removed: ${userId} from group ${groupId} by ${requester.sub}`);
+      this.logger.log(
+        `Group leader removed: ${userId} from group ${groupId} by ${requester.sub}`,
+      );
     } catch (error) {
       this.logger.error(
         `Error removing group leader: ${error.message}`,
@@ -329,218 +428,222 @@ export class GroupService implements IGroupService {
     }
   }
 
-// ========== Group Performance Methods ==========
-async getGroupPerformance(id: string): Promise<any> {
-  try {
-    const groupWithStats = await this.groupRepo.getGroupWithPerformanceStats(id);
-    if (!groupWithStats) {
-      throw AppError.from(ErrGroupNotFound, 404);
+  // ========== Group Performance Methods ==========
+  async getGroupPerformance(id: string): Promise<any> {
+    try {
+      const groupWithStats =
+        await this.groupRepo.getGroupWithPerformanceStats(id);
+      if (!groupWithStats) {
+        throw AppError.from(ErrGroupNotFound, 404);
+      }
+      return groupWithStats;
+    } catch (error) {
+      this.logger.error(
+        `Error getting group performance: ${error.message}`,
+        error.stack,
+      );
+
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw AppError.from(
+        new Error(`Lỗi khi lấy thông tin hiệu suất nhóm: ${error.message}`),
+        400,
+      );
     }
-    return groupWithStats;
-  } catch (error) {
-    this.logger.error(
-      `Error getting group performance: ${error.message}`,
-      error.stack,
-    );
+  }
 
-    if (error instanceof AppError) {
-      throw error;
+  async listGroupsWithPerformance(
+    conditions: GroupCondDTO,
+    pagination: PaginationDTO,
+  ): Promise<{
+    data: any[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    try {
+      const { data, total } =
+        await this.groupRepo.listGroupsWithPerformanceStats(
+          conditions,
+          pagination,
+        );
+
+      return {
+        data,
+        total,
+        page: pagination.page || 1,
+        limit: pagination.limit || 10,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Error listing groups with performance: ${error.message}`,
+        error.stack,
+      );
+
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw AppError.from(
+        new Error(`Lỗi khi lấy danh sách nhóm với hiệu suất: ${error.message}`),
+        400,
+      );
     }
-
-    throw AppError.from(
-      new Error(`Lỗi khi lấy thông tin hiệu suất nhóm: ${error.message}`),
-      400,
-    );
   }
-}
 
-async listGroupsWithPerformance(
-  conditions: GroupCondDTO,
-  pagination: PaginationDTO,
-): Promise<{
-  data: any[];
-  total: number;
-  page: number;
-  limit: number;
-}> {
-  try {
-    const { data, total } = await this.groupRepo.listGroupsWithPerformanceStats(
-      conditions,
-      pagination,
-    );
-
-    return {
-      data,
-      total,
-      page: pagination.page || 1,
-      limit: pagination.limit || 10,
-    };
-  } catch (error) {
-    this.logger.error(
-      `Error listing groups with performance: ${error.message}`,
-      error.stack,
-    );
-
-    if (error instanceof AppError) {
-      throw error;
+  // ========== Helper Methods ==========
+  private async checkTeamExists(teamId: string): Promise<boolean> {
+    try {
+      // Trong thực tế nên inject TeamRepository vào service
+      return await prisma.team
+        .findUnique({
+          where: { id: teamId },
+        })
+        .then((team) => !!team);
+    } catch (error) {
+      this.logger.error(
+        `Error checking team existence ${teamId}: ${error.message}`,
+        error.stack,
+      );
+      return false;
     }
-
-    throw AppError.from(
-      new Error(`Lỗi khi lấy danh sách nhóm với hiệu suất: ${error.message}`),
-      400,
-    );
   }
-}
 
-// ========== Helper Methods ==========
-private async checkTeamExists(teamId: string): Promise<boolean> {
-  try {
-    // Trong thực tế nên inject TeamRepository vào service
-    return await prisma.team.findUnique({
-      where: { id: teamId },
-    }).then(team => !!team);
-  } catch (error) {
-    this.logger.error(
-      `Error checking team existence ${teamId}: ${error.message}`,
-      error.stack,
-    );
-    return false;
+  private async checkUserExists(userId: string): Promise<boolean> {
+    try {
+      // Trong thực tế nên inject UserRepository vào service
+      return await prisma.user
+        .findUnique({
+          where: { id: userId },
+        })
+        .then((user) => !!user);
+    } catch (error) {
+      this.logger.error(
+        `Error checking user existence ${userId}: ${error.message}`,
+        error.stack,
+      );
+      return false;
+    }
   }
-}
 
-private async checkUserExists(userId: string): Promise<boolean> {
-  try {
-    // Trong thực tế nên inject UserRepository vào service
-    return await prisma.user.findUnique({
-      where: { id: userId },
-    }).then(user => !!user);
-  } catch (error) {
-    this.logger.error(
-      `Error checking user existence ${userId}: ${error.message}`,
-      error.stack,
-    );
-    return false;
-  }
-}
-  
-  
   // Bổ sung các phương thức còn thiếu trong GroupService:
 
-async getGroup(id: string): Promise<Group> {
-  try {
-    const group = await this.groupRepo.getGroup(id);
-    if (!group) {
-      throw AppError.from(ErrGroupNotFound, 404);
-    }
-    return group;
-  } catch (error) {
-    this.logger.error(
-      `Error getting group ${id}: ${error.message}`,
-      error.stack,
-    );
+  async getGroup(id: string): Promise<Group> {
+    try {
+      const group = await this.groupRepo.getGroup(id);
+      if (!group) {
+        throw AppError.from(ErrGroupNotFound, 404);
+      }
+      return group;
+    } catch (error) {
+      this.logger.error(
+        `Error getting group ${id}: ${error.message}`,
+        error.stack,
+      );
 
-    if (error instanceof AppError) {
-      throw error;
-    }
+      if (error instanceof AppError) {
+        throw error;
+      }
 
-    throw AppError.from(
-      new Error(`Lỗi khi lấy thông tin nhóm: ${error.message}`),
-      400,
-    );
+      throw AppError.from(
+        new Error(`Lỗi khi lấy thông tin nhóm: ${error.message}`),
+        400,
+      );
+    }
   }
-}
 
-async listGroups(
-  conditions: GroupCondDTO,
-  pagination: PaginationDTO,
-): Promise<{
-  data: Group[];
-  total: number;
-  page: number;
-  limit: number;
-}> {
-  try {
-    const { data, total } = await this.groupRepo.listGroups(
-      conditions,
-      pagination,
-    );
+  async listGroups(
+    conditions: GroupCondDTO,
+    pagination: PaginationDTO,
+  ): Promise<{
+    data: Group[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    try {
+      const { data, total } = await this.groupRepo.listGroups(
+        conditions,
+        pagination,
+      );
 
-    return {
-      data,
-      total,
-      page: pagination.page || 1,
-      limit: pagination.limit || 10,
-    };
-  } catch (error) {
-    this.logger.error(
-      `Error listing groups: ${error.message}`,
-      error.stack,
-    );
+      return {
+        data,
+        total,
+        page: pagination.page || 1,
+        limit: pagination.limit || 10,
+      };
+    } catch (error) {
+      this.logger.error(`Error listing groups: ${error.message}`, error.stack);
 
-    if (error instanceof AppError) {
-      throw error;
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw AppError.from(
+        new Error(`Lỗi khi lấy danh sách nhóm: ${error.message}`),
+        400,
+      );
     }
-
-    throw AppError.from(
-      new Error(`Lỗi khi lấy danh sách nhóm: ${error.message}`),
-      400,
-    );
   }
-}
 
-async assignGroupLeader(
-  requester: Requester,
-  dto: GroupLeaderCreateDTO,
-): Promise<void> {
-  try {
-    // Kiểm tra quyền
-    if (
-      requester.role !== UserRole.ADMIN &&
-      requester.role !== UserRole.SUPER_ADMIN &&
-      requester.role !== UserRole.TEAM_LEADER
-    ) {
-      throw AppError.from(ErrPermissionDenied, 403);
+  async assignGroupLeader(
+    requester: Requester,
+    dto: GroupLeaderCreateDTO,
+  ): Promise<void> {
+    try {
+      // Kiểm tra quyền
+      if (
+        requester.role !== UserRole.ADMIN &&
+        requester.role !== UserRole.SUPER_ADMIN &&
+        requester.role !== UserRole.TEAM_LEADER
+      ) {
+        throw AppError.from(ErrPermissionDenied, 403);
+      }
+
+      // Kiểm tra nhóm tồn tại
+      const group = await this.groupRepo.getGroup(dto.groupId);
+      if (!group) {
+        throw AppError.from(ErrGroupNotFound, 404);
+      }
+
+      // Kiểm tra người dùng tồn tại
+      const userExists = await this.checkUserExists(dto.userId);
+      if (!userExists) {
+        throw AppError.from(new Error('Không tìm thấy người dùng'), 404);
+      }
+
+      // Tạo nhóm trưởng mới
+      const newGroupLeader: GroupLeader = {
+        groupId: dto.groupId,
+        userId: dto.userId,
+        isPrimary: dto.isPrimary || false,
+        startDate: dto.startDate,
+        endDate: dto.endDate || null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      await this.groupRepo.addGroupLeader(newGroupLeader);
+      this.logger.log(
+        `New group leader assigned: ${dto.userId} for group ${dto.groupId} by ${requester.sub}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Error assigning group leader: ${error.message}`,
+        error.stack,
+      );
+
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw AppError.from(
+        new Error(`Lỗi khi chỉ định nhóm trưởng: ${error.message}`),
+        400,
+      );
     }
-
-    // Kiểm tra nhóm tồn tại
-    const group = await this.groupRepo.getGroup(dto.groupId);
-    if (!group) {
-      throw AppError.from(ErrGroupNotFound, 404);
-    }
-
-    // Kiểm tra người dùng tồn tại
-    const userExists = await this.checkUserExists(dto.userId);
-    if (!userExists) {
-      throw AppError.from(new Error('Không tìm thấy người dùng'), 404);
-    }
-
-    // Tạo nhóm trưởng mới
-    const newGroupLeader: GroupLeader = {
-      groupId: dto.groupId,
-      userId: dto.userId,
-      isPrimary: dto.isPrimary || false,
-      startDate: dto.startDate,
-      endDate: dto.endDate || null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    await this.groupRepo.addGroupLeader(newGroupLeader);
-    this.logger.log(`New group leader assigned: ${dto.userId} for group ${dto.groupId} by ${requester.sub}`);
-  } catch (error) {
-    this.logger.error(
-      `Error assigning group leader: ${error.message}`,
-      error.stack,
-    );
-
-    if (error instanceof AppError) {
-      throw error;
-    }
-
-    throw AppError.from(
-      new Error(`Lỗi khi chỉ định nhóm trưởng: ${error.message}`),
-      400,
-    );
   }
-}
 }

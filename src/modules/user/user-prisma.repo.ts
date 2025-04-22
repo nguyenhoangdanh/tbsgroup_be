@@ -134,6 +134,10 @@ export class UserPrismaRepository implements IUserRepository {
         where: { id },
         include: {
           role: true,
+          factory: true,
+          line: true,
+          team: true,
+          group: true,
         },
       });
 

@@ -12,6 +12,9 @@ export const groupCreateDTOSchema = groupSchema
   .partial({
     description: true,
   })
+  .extend({
+    userIds: z.array(z.string().uuid()).optional().default([]),
+  })
   .required({
     code: true,
     name: true,

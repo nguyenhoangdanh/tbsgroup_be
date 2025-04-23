@@ -1,6 +1,5 @@
 import {
   Body,
-  Controller,
   Delete,
   Get,
   Inject,
@@ -8,9 +7,7 @@ import {
   Post,
   Put,
   Query,
-  Req,
   Request,
-  Res,
   UseGuards,
 } from '@nestjs/common';
 import { ROLE_SERVICE } from './role.di-token';
@@ -20,8 +17,17 @@ import { PaginationDTO } from '../user/user.dto';
 import { RemoteAuthGuard, Roles, RolesGuard } from 'src/share/guard';
 import { ReqWithRequester, UserRole } from 'src/share';
 import { ZodValidationPipe } from 'src/share/pipes/zod-validation.pipe';
+import { generateClassFromZodSchema } from 'src/common/transformers/zod-to-class.transformer';
+import { ApiController } from 'src/common/decorators/api-controller.decorator';
+import {
+  ApiCreateDoc,
+  ApiGetDoc,
+  ApiGetListDoc,
+} from 'src/common/decorators/swagger.decorator';
 
-@Controller('roles')
+const RoleDTOClass = generateClassFromZodSchema(roleDTOSchema, 'RoleDTO');
+
+@ApiController('Roles', 'roles')
 @UseGuards(RemoteAuthGuard, RolesGuard)
 export class RoleHttpController {
   constructor(
@@ -30,6 +36,7 @@ export class RoleHttpController {
 
   @Post()
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiCreateDoc(RoleDTOClass, RoleDTOClass, { summary: 'Create a new role' })
   async createRole(
     @Body(new ZodValidationPipe(roleDTOSchema)) dto: RoleDTO,
   ): Promise<{ id: string }> {
@@ -39,6 +46,7 @@ export class RoleHttpController {
 
   @Get()
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiGetListDoc(RoleDTOClass, { summary: 'List all roles' })
   async listRoles(
     @Query('page') page = 1,
     @Query('limit') limit = 10,
@@ -67,6 +75,7 @@ export class RoleHttpController {
 
   @Get(':id')
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiGetDoc(RoleDTOClass, { summary: 'Get role by ID' })
   async getRole(@Param('id') id: string) {
     return this.roleService.getRole(id);
   }

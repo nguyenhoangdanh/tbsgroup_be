@@ -2,7 +2,6 @@ import { z } from 'zod';
 import {
   ShiftType,
   AttendanceStatus,
-  RecordStatus,
   ProductionIssueType,
 } from './digital-form.model';
 
@@ -22,7 +21,10 @@ export const digitalFormCreateDTOSchema = z.object({
   description: z.string().optional(),
   date: z.string(), // ISO date string
   shiftType: z.nativeEnum(ShiftType),
+  factoryId: z.string().uuid(),
   lineId: z.string().uuid(),
+  teamId: z.string().uuid(),
+  groupId: z.string().uuid(),
 });
 
 export type DigitalFormCreateDTO = z.infer<typeof digitalFormCreateDTOSchema>;
@@ -44,7 +46,10 @@ export type DigitalFormSubmitDTO = z.infer<typeof digitalFormSubmitDTOSchema>;
 
 // Digital Form Condition DTO for filtering
 export const digitalFormCondDTOSchema = z.object({
+  factoryId: z.string().uuid().optional(),
   lineId: z.string().uuid().optional(),
+  teamId: z.string().uuid().optional(),
+  groupId: z.string().uuid().optional(),
   createdById: z.string().uuid().optional(),
   status: z.enum(['DRAFT', 'PENDING', 'CONFIRMED', 'REJECTED']).optional(),
   dateFrom: z.string().optional(), // ISO date string

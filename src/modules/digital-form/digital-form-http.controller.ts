@@ -259,3 +259,275 @@ export class DigitalFormHttpController {
     }
   }
 }
+
+@Controller('digital-forms/reports')
+@UseGuards(RemoteAuthGuard)
+export class DigitalFormReportsController {
+  private readonly logger = new Logger(DigitalFormReportsController.name);
+
+  constructor(
+    @Inject(DIGITAL_FORM_SERVICE)
+    private readonly digitalFormService: IDigitalFormService,
+  ) {}
+
+  @Get('factory/:factoryId')
+  @HttpCode(HttpStatus.OK)
+  async getFactoryProductionReport(
+    @Param('factoryId') factoryId: string,
+    @Query('dateFrom') dateFrom: string,
+    @Query('dateTo') dateTo: string,
+    @Query('includeLines') includeLines: string,
+    @Query('includeTeams') includeTeams: string,
+    @Query('includeGroups') includeGroups: string,
+    @Query('groupByBag') groupByBag: string,
+    @Query('groupByProcess') groupByProcess: string,
+  ) {
+    try {
+      const options = {
+        includeLines: includeLines === 'true',
+        includeTeams: includeTeams === 'true',
+        includeGroups: includeGroups === 'true',
+        groupByBag: groupByBag === 'true',
+        groupByProcess: groupByProcess === 'true',
+      };
+
+      const report = await this.digitalFormService.getProductionReportByFactory(
+        factoryId,
+        dateFrom,
+        dateTo,
+        options,
+      );
+
+      return { success: true, data: report };
+    } catch (error) {
+      this.logger.error(
+        `Error getting factory production report: ${error.message}`,
+        error.stack,
+      );
+
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw AppError.from(
+        new Error(`Error generating report: ${error.message}`),
+        500,
+      );
+    }
+  }
+
+  @Get('line/:lineId')
+  @HttpCode(HttpStatus.OK)
+  async getLineProductionReport(
+    @Param('lineId') lineId: string,
+    @Query('dateFrom') dateFrom: string,
+    @Query('dateTo') dateTo: string,
+    @Query('includeTeams') includeTeams: string,
+    @Query('includeGroups') includeGroups: string,
+    @Query('groupByBag') groupByBag: string,
+    @Query('groupByProcess') groupByProcess: string,
+  ) {
+    try {
+      const options = {
+        includeTeams: includeTeams === 'true',
+        includeGroups: includeGroups === 'true',
+        groupByBag: groupByBag === 'true',
+        groupByProcess: groupByProcess === 'true',
+      };
+
+      const report = await this.digitalFormService.getProductionReportByLine(
+        lineId,
+        dateFrom,
+        dateTo,
+        options,
+      );
+
+      return { success: true, data: report };
+    } catch (error) {
+      this.logger.error(
+        `Error getting line production report: ${error.message}`,
+        error.stack,
+      );
+
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw AppError.from(
+        new Error(`Error generating report: ${error.message}`),
+        500,
+      );
+    }
+  }
+
+  @Get('team/:teamId')
+  @HttpCode(HttpStatus.OK)
+  async getTeamProductionReport(
+    @Param('teamId') teamId: string,
+    @Query('dateFrom') dateFrom: string,
+    @Query('dateTo') dateTo: string,
+    @Query('includeGroups') includeGroups: string,
+    @Query('includeWorkers') includeWorkers: string,
+    @Query('groupByBag') groupByBag: string,
+    @Query('groupByProcess') groupByProcess: string,
+  ) {
+    try {
+      const options = {
+        includeGroups: includeGroups === 'true',
+        includeWorkers: includeWorkers === 'true',
+        groupByBag: groupByBag === 'true',
+        groupByProcess: groupByProcess === 'true',
+      };
+
+      const report = await this.digitalFormService.getProductionReportByTeam(
+        teamId,
+        dateFrom,
+        dateTo,
+        options,
+      );
+
+      return { success: true, data: report };
+    } catch (error) {
+      this.logger.error(
+        `Error getting team production report: ${error.message}`,
+        error.stack,
+      );
+
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw AppError.from(
+        new Error(`Error generating report: ${error.message}`),
+        500,
+      );
+    }
+  }
+
+  @Get('group/:groupId')
+  @HttpCode(HttpStatus.OK)
+  async getGroupProductionReport(
+    @Param('groupId') groupId: string,
+    @Query('dateFrom') dateFrom: string,
+    @Query('dateTo') dateTo: string,
+    @Query('includeWorkers') includeWorkers: string,
+    @Query('detailedAttendance') detailedAttendance: string,
+    @Query('groupByBag') groupByBag: string,
+    @Query('groupByProcess') groupByProcess: string,
+  ) {
+    try {
+      const options = {
+        includeWorkers: includeWorkers === 'true',
+        detailedAttendance: detailedAttendance === 'true',
+        groupByBag: groupByBag === 'true',
+        groupByProcess: groupByProcess === 'true',
+      };
+
+      const report = await this.digitalFormService.getProductionReportByGroup(
+        groupId,
+        dateFrom,
+        dateTo,
+        options,
+      );
+
+      return { success: true, data: report };
+    } catch (error) {
+      this.logger.error(
+        `Error getting group production report: ${error.message}`,
+        error.stack,
+      );
+
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw AppError.from(
+        new Error(`Error generating report: ${error.message}`),
+        500,
+      );
+    }
+  }
+
+  @Get('comparison')
+  @HttpCode(HttpStatus.OK)
+  async getComparisonReport(
+    @Query('lineId') lineId: string,
+    @Query('entityIds') entityIds: string,
+    @Query('compareBy') compareBy: 'team' | 'group',
+    @Query('dateFrom') dateFrom: string,
+    @Query('dateTo') dateTo: string,
+    @Query('includeHandBags') includeHandBags: string,
+    @Query('includeProcesses') includeProcesses: string,
+    @Query('includeTimeSeries') includeTimeSeries: string,
+  ) {
+    try {
+      const ids = entityIds.split(',');
+      const options = {
+        includeHandBags: includeHandBags === 'true',
+        includeProcesses: includeProcesses === 'true',
+        includeTimeSeries: includeTimeSeries === 'true',
+      };
+
+      const report =
+        await this.digitalFormService.getProductionComparisonReport(
+          lineId,
+          ids,
+          compareBy,
+          dateFrom,
+          dateTo,
+          options,
+        );
+
+      return { success: true, data: report };
+    } catch (error) {
+      this.logger.error(
+        `Error getting comparison report: ${error.message}`,
+        error.stack,
+      );
+
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw AppError.from(
+        new Error(`Error generating comparison report: ${error.message}`),
+        500,
+      );
+    }
+  }
+
+  @Post('export')
+  @HttpCode(HttpStatus.OK)
+  async exportReport(
+    @Body()
+    body: {
+      reportType: 'team' | 'group' | 'comparison';
+      parameters: any;
+      format: 'pdf' | 'excel' | 'csv';
+    },
+  ) {
+    try {
+      const result = await this.digitalFormService.exportProductionReport(
+        body.reportType,
+        body.parameters,
+        body.format,
+      );
+
+      return { success: true, data: result };
+    } catch (error) {
+      this.logger.error(
+        `Error exporting report: ${error.message}`,
+        error.stack,
+      );
+
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw AppError.from(
+        new Error(`Error exporting report: ${error.message}`),
+        500,
+      );
+    }
+  }
+}

@@ -56,8 +56,11 @@ export const digitalFormSchema = z.object({
   description: z.string().nullable(),
   date: z.date(),
   shiftType: z.nativeEnum(ShiftType),
+  factoryId: z.string().uuid(),
   lineId: z.string().uuid(),
   status: z.nativeEnum(RecordStatus).default(RecordStatus.DRAFT),
+  teamId: z.string().uuid(),
+  groupId: z.string().uuid(),
 
   // User and timestamp fields
   createdById: z.string().uuid(),
@@ -154,3 +157,189 @@ export const STANDARD_TIME_INTERVALS: TimeInterval[] = [
   { start: '18:00', end: '19:00', label: '18:00-19:00' },
   { start: '19:00', end: '20:00', label: '19:00-20:00' },
 ];
+
+// In digital-form.model.ts
+
+// Base interface for common report data
+export interface BaseProductionReport {
+  dateRange: {
+    from: string;
+    to: string;
+  };
+  totalForms: number;
+  totalEntries: number;
+  totalOutput: number;
+  averageQuality: number;
+  outputByBag: {
+    handBagId: string;
+    handBagCode: string;
+    handBagName: string;
+    totalOutput: number;
+    percentage: number; // Percentage of total output
+  }[];
+  outputByProcess: {
+    processId: string;
+    processCode: string;
+    processName: string;
+    totalOutput: number;
+  }[];
+  attendanceStats: {
+    present: number;
+    absent: number;
+    late: number;
+    earlyLeave: number;
+    leaveApproved: number;
+    percentPresent: number; // Percentage of total attendance
+  };
+  hourlyBreakdown: {
+    hour: string; // e.g. "07:30-08:30"
+    totalOutput: number;
+    averageOutput: number; // Average per worker
+  }[];
+  dailyBreakdown: {
+    date: string;
+    totalOutput: number;
+    averageQuality: number;
+    attendanceRate: number; // Percentage present
+  }[];
+  productionIssues: {
+    issueType: ProductionIssueType;
+    occurrences: number;
+    totalImpact: number; // Total production loss
+  }[];
+}
+
+export interface FactoryProductionReport extends BaseProductionReport {
+  factoryId: string;
+  factoryName: string;
+  factoryCode: string;
+  lineBreakdown: {
+    lineId: string;
+    lineName: string;
+    lineCode: string;
+    totalOutput: number;
+    averageQuality: number;
+    teamCount: number;
+    workerCount: number;
+    efficiency: number; // Hiệu suất so với mục tiêu của nhà máy
+  }[];
+}
+
+export interface LineProductionReport extends BaseProductionReport {
+  lineId: string;
+  lineName: string;
+  lineCode: string;
+  factoryId: string;
+  factoryName: string;
+  factoryCode: string;
+  teamBreakdown: {
+    teamId: string;
+    teamName: string;
+    teamCode: string;
+    totalOutput: number;
+    averageQuality: number;
+    groupCount: number;
+    workerCount: number;
+    efficiency: number; // Hiệu suất so với trung bình line
+  }[];
+}
+
+// Team level report
+export interface TeamProductionReport extends BaseProductionReport {
+  factoryId: string;
+  factoryName: string;
+  factoryCode: string;
+  teamId: string;
+  teamName: string;
+  teamCode: string;
+  lineId: string;
+  lineName: string;
+  groupBreakdown: {
+    groupId: string;
+    groupName: string;
+    groupCode: string;
+    totalOutput: number;
+    averageQuality: number;
+    workerCount: number;
+    efficiency: number; // Output relative to team average
+  }[];
+}
+
+// Group level report
+export interface GroupProductionReport extends BaseProductionReport {
+  factoryId: string;
+  factoryName: string;
+  factoryCode: string;
+  groupId: string;
+  groupName: string;
+  groupCode: string;
+  teamId: string;
+  teamName: string;
+  lineId: string;
+  lineName: string;
+  workerBreakdown: {
+    userId: string;
+    employeeId: string;
+    fullName: string;
+    totalOutput: number;
+    averageQuality: number;
+    attendanceRate: number; // Percentage of days present
+    efficiency: number; // Output relative to group average
+  }[];
+}
+
+// Comparison report for multiple teams/groups
+export interface ProductionComparisonReport {
+  dateRange: {
+    from: string;
+    to: string;
+  };
+  factoryId: string;
+  factoryName: string;
+  factoryCode: string;
+  lineId: string;
+  lineName: string;
+  lineCode: string;
+  comparisonType: 'team' | 'group';
+  comparisonData: {
+    id: string; // Team or group ID
+    name: string;
+    code: string;
+    totalOutput: number;
+    outputPerWorker: number;
+    qualityScore: number;
+    attendanceRate: number;
+    issueRate: number; // Percentage of time affected by issues
+    rank: number; // Rank based on output
+  }[];
+  comparisonByBag: {
+    handBagId: string;
+    handBagCode: string;
+    handBagName: string;
+    dataPoints: {
+      id: string; // Team or group ID
+      name: string;
+      output: number;
+      efficiency: number; // Output relative to expected
+    }[];
+  }[];
+  comparisonByProcess: {
+    processId: string;
+    processCode: string;
+    processName: string;
+    dataPoints: {
+      id: string; // Team or group ID
+      name: string;
+      output: number;
+      efficiency: number;
+    }[];
+  }[];
+  timeSeriesData: {
+    date: string;
+    dataPoints: {
+      id: string; // Team or group ID
+      name: string;
+      output: number;
+    }[];
+  }[];
+}

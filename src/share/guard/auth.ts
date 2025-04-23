@@ -43,11 +43,9 @@ export class RemoteAuthGuard implements CanActivate {
       }
 
       // Verify token validity
-      const { payload, error, isOk } =
-        await this.introspector.introspect(token);
+      const { payload, isOk } = await this.introspector.introspect(token);
 
       if (!isOk || !payload) {
-        const errorMsg = error?.message || 'Invalid token';
         throw new UnauthorizedException('Token không hợp lệ hoặc đã hết hạn');
       }
 

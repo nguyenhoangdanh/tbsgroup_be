@@ -183,7 +183,10 @@ export class DigitalFormPrismaRepository implements IDigitalFormRepository {
       description: data.description,
       date: new Date(data.date),
       shiftType: this._mapShiftType(data.shiftType),
+      factoryId: data.factoryId,
       lineId: data.lineId,
+      teamId: data.teamId,
+      groupId: data.groupId,
       status: this._mapRecordStatus(data.status),
       createdById: data.createdById,
       createdAt: new Date(data.createdAt),
@@ -249,6 +252,49 @@ export class DigitalFormPrismaRepository implements IDigitalFormRepository {
     };
   }
 
+  // In digital-form-prisma.repo.ts
+  async getTeamCode(teamId: string): Promise<string> {
+    try {
+      const team = await prisma.team.findUnique({
+        where: { id: teamId },
+        select: { code: true },
+      });
+
+      if (!team) {
+        throw new Error(`Team not found: ${teamId}`);
+      }
+
+      return team.code;
+    } catch (error) {
+      this.logger.error(
+        `Error getting team code for ${teamId}: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  async getGroupCode(groupId: string): Promise<string> {
+    try {
+      const group = await prisma.group.findUnique({
+        where: { id: groupId },
+        select: { code: true },
+      });
+
+      if (!group) {
+        throw new Error(`Group not found: ${groupId}`);
+      }
+
+      return group.code;
+    } catch (error) {
+      this.logger.error(
+        `Error getting group code for ${groupId}: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
   private _mapProductionIssueType(type: any): ProductionIssueType {
     // Handle both string and enum cases to be safe
     if (typeof type === 'string') {
@@ -270,6 +316,14 @@ export class DigitalFormPrismaRepository implements IDigitalFormRepository {
 
     if (conditions.lineId) {
       whereClause.lineId = conditions.lineId;
+    }
+
+    if (conditions.teamId) {
+      whereClause.teamId = conditions.teamId;
+    }
+
+    if (conditions.groupId) {
+      whereClause.groupId = conditions.groupId;
     }
 
     if (conditions.createdById) {
@@ -363,7 +417,10 @@ export class DigitalFormPrismaRepository implements IDigitalFormRepository {
           description: form.description,
           date: form.date,
           shiftType: this._mapToDbShiftType(form.shiftType),
+          factoryId: form.factoryId,
           lineId: form.lineId,
+          teamId: form.teamId,
+          groupId: form.groupId,
           status: this._mapToDbRecordStatus(form.status),
           createdById: form.createdById,
           updatedById: form.updatedById,
@@ -703,6 +760,660 @@ export class DigitalFormPrismaRepository implements IDigitalFormRepository {
         error.stack,
       );
       throw error; // Preserve original error
+    }
+  }
+
+  // In digital-form-prisma.repo.ts
+
+  async getTeamInfo(teamId: string): Promise<{
+    id: string;
+    name: string;
+    code: string;
+    lineId: string;
+    lineName: string;
+  }> {
+    try {
+      const team = await prisma.team.findUnique({
+        where: { id: teamId },
+        include: {
+          line: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      });
+
+      if (!team) {
+        throw new Error(`Team not found: ${teamId}`);
+      }
+
+      return {
+        id: team.id,
+        name: team.name,
+        code: team.code,
+        lineId: team.lineId,
+        lineName: team.line.name,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Error getting team info for ${teamId}: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  async getTeamForms(
+    teamId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<DigitalForm[]> {
+    try {
+      // First, get all forms that match the team and date range
+      const prismaForms = await prisma.digitalProductionForm.findMany({
+        where: {
+          teamId,
+          date: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+        orderBy: {
+          date: 'asc',
+        },
+      });
+
+      // Map to domain model
+      return prismaForms.map((form) => this._toDigitalFormModel(form));
+    } catch (error) {
+      this.logger.error(
+        `Error getting team forms: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  async getFormEntriesByFormIds(
+    formIds: string[],
+  ): Promise<DigitalFormEntry[]> {
+    try {
+      if (formIds.length === 0) {
+        return [];
+      }
+
+      const entries = await prisma.productionFormEntry.findMany({
+        where: {
+          formId: {
+            in: formIds,
+          },
+        },
+      });
+
+      return entries.map((entry) => this._toDigitalFormEntryModel(entry));
+    } catch (error) {
+      this.logger.error(
+        `Error getting form entries: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  async getHandBagDetails(
+    handBagIds: string[],
+  ): Promise<{ id: string; code: string; name: string }[]> {
+    try {
+      if (handBagIds.length === 0) {
+        return [];
+      }
+
+      const bags = await prisma.handBag.findMany({
+        where: {
+          id: {
+            in: handBagIds,
+          },
+        },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+        },
+      });
+
+      return bags;
+    } catch (error) {
+      this.logger.error(
+        `Error getting hand bag details: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  async getBagProcessDetails(
+    processIds: string[],
+  ): Promise<{ id: string; code: string; name: string }[]> {
+    try {
+      if (processIds.length === 0) {
+        return [];
+      }
+
+      const processes = await prisma.bagProcess.findMany({
+        where: {
+          id: {
+            in: processIds,
+          },
+        },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+        },
+      });
+
+      return processes;
+    } catch (error) {
+      this.logger.error(
+        `Error getting bag process details: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  // 2. Add missing method implementation: getTeamGroups
+  async getTeamGroups(
+    teamId: string,
+  ): Promise<{ id: string; name: string; code: string }[]> {
+    try {
+      const groups = await prisma.group.findMany({
+        where: {
+          teamId,
+        },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+        },
+      });
+
+      return groups;
+    } catch (error) {
+      this.logger.error(
+        `Error getting team groups for ${teamId}: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  // 3. Add missing method implementation: getGroupEntries
+  async getGroupEntries(
+    groupId: string,
+    formIds: string[],
+  ): Promise<DigitalFormEntry[]> {
+    try {
+      if (formIds.length === 0) {
+        return [];
+      }
+
+      // First, get users in the group
+      const groupUsers = await prisma.user.findMany({
+        where: {
+          groupId,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      const userIds = groupUsers.map((user) => user.id);
+
+      if (userIds.length === 0) {
+        return [];
+      }
+
+      // Then, get entries for these users in the specified forms
+      const entries = await prisma.productionFormEntry.findMany({
+        where: {
+          formId: {
+            in: formIds,
+          },
+          userId: {
+            in: userIds,
+          },
+        },
+      });
+
+      return entries.map((entry) => this._toDigitalFormEntryModel(entry));
+    } catch (error) {
+      this.logger.error(
+        `Error getting group entries: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  async getFactoryCode(factoryId: string): Promise<string> {
+    try {
+      const factory = await prisma.factory.findUnique({
+        where: { id: factoryId },
+        select: { code: true },
+      });
+
+      if (!factory) {
+        throw new Error(`Factory not found: ${factoryId}`);
+      }
+
+      return factory.code;
+    } catch (error) {
+      this.logger.error(
+        `Error getting factory code for ${factoryId}: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  async getFactoryInfo(factoryId: string): Promise<{
+    id: string;
+    name: string;
+    code: string;
+  }> {
+    try {
+      const factory = await prisma.factory.findUnique({
+        where: { id: factoryId },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+        },
+      });
+      if (!factory) {
+        throw new Error(`Factory not found: ${factoryId}`);
+      }
+      return factory;
+    } catch (error) {
+      this.logger.error(
+        `Error getting factory info for ${factoryId}: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  async getFactoryLines(
+    factoryId: string,
+  ): Promise<{ id: string; name: string; code: string }[]> {
+    try {
+      const lines = await prisma.line.findMany({
+        where: {
+          factoryId,
+        },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+        },
+      });
+
+      return lines;
+    } catch (error) {
+      this.logger.error(
+        `Error getting factory lines for ${factoryId}: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  async getFactoryForms(
+    factoryId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<DigitalForm[]> {
+    try {
+      // Lấy tất cả các forms của factory trong khoảng thời gian
+      const prismaForms = await prisma.digitalProductionForm.findMany({
+        where: {
+          factoryId,
+          date: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+        orderBy: {
+          date: 'asc',
+        },
+      });
+
+      // Map sang domain model
+      return prismaForms.map((form) => this._toDigitalFormModel(form));
+    } catch (error) {
+      this.logger.error(
+        `Error getting factory forms: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  async getLineForms(
+    lineId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<DigitalForm[]> {
+    try {
+      // Lấy tất cả các forms của line trong khoảng thời gian
+      const prismaForms = await prisma.digitalProductionForm.findMany({
+        where: {
+          lineId,
+          date: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+        orderBy: {
+          date: 'asc',
+        },
+      });
+
+      // Map sang domain model
+      return prismaForms.map((form) => this._toDigitalFormModel(form));
+    } catch (error) {
+      this.logger.error(
+        `Error getting line forms: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  async getLineFactory(
+    lineId: string,
+  ): Promise<{ id: string; name: string; code: string }> {
+    try {
+      const line = await prisma.line.findUnique({
+        where: { id: lineId },
+        include: {
+          factory: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+            },
+          },
+        },
+      });
+
+      if (!line || !line.factory) {
+        throw new Error(`Factory not found for line: ${lineId}`);
+      }
+
+      return line.factory;
+    } catch (error) {
+      this.logger.error(
+        `Error getting line factory for ${lineId}: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  // 4. Add missing method implementation: getGroupInfo
+  async getGroupInfo(groupId: string): Promise<{
+    id: string;
+    name: string;
+    code: string;
+    teamId: string;
+    teamName: string;
+    lineId: string;
+    lineName: string;
+  }> {
+    try {
+      const group = await prisma.group.findUnique({
+        where: { id: groupId },
+        include: {
+          team: {
+            include: {
+              line: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!group) {
+        throw new Error(`Group not found: ${groupId}`);
+      }
+
+      return {
+        id: group.id,
+        name: group.name,
+        code: group.code,
+        teamId: group.teamId,
+        teamName: group.team.name,
+        lineId: group.team.lineId,
+        lineName: group.team.line.name,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Error getting group info for ${groupId}: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  // 5. Add missing method implementation: getGroupForms
+  async getGroupForms(
+    groupId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<DigitalForm[]> {
+    try {
+      // Get forms for this group within the date range
+      const prismaForms = await prisma.digitalProductionForm.findMany({
+        where: {
+          groupId,
+          date: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+        orderBy: {
+          date: 'asc',
+        },
+      });
+
+      // Map to domain model
+      return prismaForms.map((form) => this._toDigitalFormModel(form));
+    } catch (error) {
+      this.logger.error(
+        `Error getting group forms: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  // 6. Add missing method implementation: getGroupWorkers
+  async getGroupWorkers(
+    groupId: string,
+  ): Promise<{ id: string; employeeId: string; fullName: string }[]> {
+    try {
+      const workers = await prisma.user.findMany({
+        where: {
+          groupId,
+        },
+        select: {
+          id: true,
+          employeeId: true,
+          fullName: true,
+        },
+      });
+
+      return workers;
+    } catch (error) {
+      this.logger.error(
+        `Error getting group workers: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  // 7. Add missing method implementation: getWorkerEntries
+  async getWorkerEntries(
+    userId: string,
+    formIds: string[],
+  ): Promise<DigitalFormEntry[]> {
+    try {
+      if (formIds.length === 0) {
+        return [];
+      }
+
+      const entries = await prisma.productionFormEntry.findMany({
+        where: {
+          formId: {
+            in: formIds,
+          },
+          userId,
+        },
+      });
+
+      return entries.map((entry) => this._toDigitalFormEntryModel(entry));
+    } catch (error) {
+      this.logger.error(
+        `Error getting worker entries: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  // 8. Add missing method implementation: getLineInfo
+  async getLineInfo(
+    lineId: string,
+  ): Promise<{ id: string; name: string; code: string }> {
+    try {
+      const line = await prisma.line.findUnique({
+        where: { id: lineId },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+        },
+      });
+
+      if (!line) {
+        throw new Error(`Line not found: ${lineId}`);
+      }
+
+      return line;
+    } catch (error) {
+      this.logger.error(
+        `Error getting line info for ${lineId}: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  // 9. Add missing method implementation: getLineTeams
+  async getLineTeams(
+    lineId: string,
+  ): Promise<{ id: string; name: string; code: string }[]> {
+    try {
+      const teams = await prisma.team.findMany({
+        where: {
+          lineId,
+        },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+        },
+      });
+
+      return teams;
+    } catch (error) {
+      this.logger.error(
+        `Error getting line teams: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  // 10. Add missing method implementation: getLineGroups
+  async getLineGroups(lineId: string): Promise<
+    {
+      id: string;
+      name: string;
+      code: string;
+      teamId: string;
+      teamName: string;
+    }[]
+  > {
+    try {
+      // First, get all teams in the line
+      const teams = await prisma.team.findMany({
+        where: {
+          lineId,
+        },
+        select: {
+          id: true,
+          name: true,
+        },
+      });
+
+      if (teams.length === 0) {
+        return [];
+      }
+
+      const teamIds = teams.map((team) => team.id);
+
+      // Then, get all groups in these teams
+      const groups = await prisma.group.findMany({
+        where: {
+          teamId: {
+            in: teamIds,
+          },
+        },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          teamId: true,
+        },
+      });
+
+      // Build result with team names
+      return groups.map((group) => {
+        const team = teams.find((t) => t.id === group.teamId);
+        return {
+          id: group.id,
+          name: group.name,
+          code: group.code,
+          teamId: group.teamId,
+          teamName: team ? team.name : 'Unknow',
+        };
+      });
+    } catch (error) {
+      this.logger.error(
+        `Error getting line groups: ${error.message}`,
+        error.stack,
+      );
+      throw error;
     }
   }
 }

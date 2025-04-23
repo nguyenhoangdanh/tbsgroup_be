@@ -1,0 +1,174 @@
+/* public/swagger-custom.css */
+:root {
+  --primary-color: #1976d2;
+  --secondary-color: #f5f5f5;
+  --text-color: #333;
+  --border-color: #e0e0e0;
+  --success-color: #4caf50;
+  --error-color: #f44336;
+  --warning-color: #ff9800;
+}
+
+/* Swagger UI Header */
+.swagger-ui .topbar {
+  background-color: var(--primary-color);
+  padding: 10px 0;
+}
+
+.swagger-ui .topbar .download-url-wrapper .select-label select {
+  border-color: var(--border-color);
+}
+
+/* Models Section */
+.swagger-ui .models {
+  margin: 20px 0;
+}
+
+.swagger-ui .model-container {
+  margin: 0 20px 15px;
+  border-radius: 5px;
+  border: 1px solid var(--border-color);
+}
+
+.swagger-ui .model-box {
+  padding: 10px;
+}
+
+/* Request Parameters */
+.swagger-ui .parameters-container {
+  margin: 20px 0;
+}
+
+.swagger-ui .parameters-container th {
+  color: var(--text-color);
+  font-weight: 600;
+}
+
+.swagger-ui .parameters-container td {
+  padding: 10px;
+}
+
+/* Method Colors */
+.swagger-ui .opblock-get {
+  background: rgba(97, 175, 254, 0.1);
+  border-color: #61affe;
+}
+
+.swagger-ui .opblock-post {
+  background: rgba(73, 204, 144, 0.1);
+  border-color: #49cc90;
+}
+
+.swagger-ui .opblock-put {
+  background: rgba(252, 161, 48, 0.1);
+  border-color: #fca130;
+}
+
+.swagger-ui .opblock-delete {
+  background: rgba(249, 62, 62, 0.1);
+  border-color: #f93e3e;
+}
+
+.swagger-ui .opblock-patch {
+  background: rgba(80, 227, 194, 0.1);
+  border-color: #50e3c2;
+}
+
+/* Auth Button */
+.swagger-ui .auth-wrapper .authorize {
+  background-color: var(--primary-color);
+  color: white;
+  border-radius: 4px;
+  padding: 5px 20px;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.swagger-ui .auth-wrapper .authorize:hover {
+  background-color: #1565c0;
+}
+
+/* Responses Section */
+.swagger-ui .responses-table {
+  margin-top: 15px;
+}
+
+.swagger-ui .response-col_status {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Improve Code Display */
+.swagger-ui pre.example {
+  background-color: #f8f8f8;
+  border-radius: 3px;
+  padding: 10px;
+  margin: 10px 0;
+}
+
+/* Better Fonts */
+.swagger-ui, .swagger-ui .opblock-summary-description {
+  font-family: 'Segoe UI', 'Roboto', sans-serif;
+}
+
+/* Try it Out Button */
+.swagger-ui .try-out__btn {
+  background-color: var(--primary-color);
+  color: white;
+  border-radius: 4px;
+  padding: 4px 12px;
+  border: none;
+}
+
+.swagger-ui .try-out__btn:hover {
+  background-color: #1565c0;
+}
+
+/* Execute Button */
+.swagger-ui .btn.execute {
+  background-color: var(--success-color);
+  color: white;
+  border-radius: 4px;
+  padding: 5px 20px;
+  border: none;
+  transition: background-color 0.3s;
+}
+
+.swagger-ui .btn.execute:hover {
+  background-color: #388e3c;
+}
+
+/* Response Color Coding */
+.swagger-ui .response-col_status {
+  padding: 5px 10px;
+  border-radius: 3px;
+}
+
+.swagger-ui .response-col_status .response-undocumented {
+  font-size: 11px;
+  font-style: italic;
+  color: #999;
+}
+
+/* Status Codes */
+.swagger-ui .response-col_status[data-code="200"],
+.swagger-ui .response-col_status[data-code="201"] {
+  color: var(--success-color);
+  background-color: rgba(76, 175, 80, 0.1);
+}
+
+.swagger-ui .response-col_status[data-code="400"],
+.swagger-ui .response-col_status[data-code="401"],
+.swagger-ui .response-col_status[data-code="403"],
+.swagger-ui .response-col_status[data-code="404"] {
+  color: var(--error-color);
+  background-color: rgba(244, 67, 54, 0.1);
+}
+
+.swagger-ui .response-col_status[data-code="500"],
+.swagger-ui .response-col_status[data-code="502"],
+.swagger-ui .response-col_status[data-code="503"] {
+  color: var(--warning-color);
+  background-color: rgba(255, 152, 0, 0.1);
+}

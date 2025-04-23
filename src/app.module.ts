@@ -1,3 +1,4 @@
+// src/app.module.ts
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
@@ -22,27 +23,40 @@ import { DigitalFormModule } from './modules/digital-form/digital-form.module';
 import { SwaggerModule } from './common/swagger/swagger.module';
 import { SwaggerModelInterceptor } from './common/interceptors/swagger-model.interceptor';
 import { SwaggerAuthGuard } from './share/guard/swagger-auth.guard';
-import { SwaggerAuthGuardProvider } from './share/guard/swagger-auth-guard.provider';
 import { SwaggerEnhancerMiddleware } from './common/middlewares/swagger-enhancer.middleware';
 
 @Module({
   imports: [
+    // Serve static files
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'uploads'),
       serveRoot: '/uploads',
+      exclude: ['/api*'],
+    }),
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', 'public'),
+      serveRoot: '/',
+      exclude: ['/api*'],
     }),
 
     // Config module
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath:
+        process.env.NODE_ENV === 'production'
+          ? '.env'
+          : `.env.${process.env.NODE_ENV || 'development'}`,
     }),
 
     // Đăng ký module Swagger tùy chỉnh
     SwaggerModule,
 
+    // Core modules
     ShareModule,
-    UserModule,
     RedisModule,
+
+    // Feature modules
+    UserModule,
     RoleModule,
     FactoryModule,
     HandBagModule,
@@ -57,11 +71,12 @@ import { SwaggerEnhancerMiddleware } from './common/middlewares/swagger-enhancer
   controllers: [AppController],
   providers: [
     AppService,
-    SwaggerAuthGuardProvider,
+    // Authentication guards - Sử dụng guard tùy chỉnh cho Swagger
     {
       provide: APP_GUARD,
       useClass: SwaggerAuthGuard,
     },
+    // Global filters and interceptors
     {
       provide: APP_FILTER,
       useClass: AppErrorFilter,
@@ -74,6 +89,7 @@ import { SwaggerEnhancerMiddleware } from './common/middlewares/swagger-enhancer
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
+    // Apply SwaggerEnhancerMiddleware to all routes
     consumer.apply(SwaggerEnhancerMiddleware).forRoutes('*');
   }
 }

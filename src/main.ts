@@ -6,10 +6,17 @@ import { ZodExceptionFilter } from './lib/zod-exception.filter';
 import { setupSwagger } from './common/swagger/swagger.config';
 import { AuthExceptionFilter } from './common/exceptions/auth-filter.exception';
 import { SwaggerTokenInterceptor } from './common/interceptors/swagger-token.interceptor';
+import { ValidationPipe } from '@nestjs/common';
+import { join } from 'path';
+import { NestExpressApplication } from '@nestjs/platform-express';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Đăng ký cookie parser middleware
   app.use(cookieParser());
+
+  // Cấu hình CORS
   app.enableCors({
     origin: [
       'http://localhost:3000',
@@ -22,31 +29,47 @@ async function bootstrap() {
       'X-CSRF-Token',
       'X-Requested-With',
       'Accept',
+      'x-from-swagger',
     ],
     exposedHeaders: ['Authorization'],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
   });
+
+  // Đặt prefix cho tất cả API
   app.setGlobalPrefix('api/v1');
+
+  // Thêm thư mục tĩnh cho custom CSS (nếu cần)
+  app.useStaticAssets(join(__dirname, '..', 'public'));
+
+  // Đăng ký global pipes
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    }),
+  );
+
+  // Đăng ký global filters
+  app.useGlobalFilters(new ZodExceptionFilter(), new AuthExceptionFilter());
+
+  // Đăng ký global interceptors
+  app.useGlobalInterceptors(new SwaggerTokenInterceptor());
 
   // Cấu hình Swagger
   setupSwagger(app);
 
-  // Global filter for ZodError
-  app.useGlobalFilters(new ZodExceptionFilter());
+  // Khởi động server
+  const port = process.env.PORT || 3000;
+  await app.listen(port);
 
-  app.useGlobalFilters(new AuthExceptionFilter());
-
-  app.useGlobalInterceptors(new SwaggerTokenInterceptor());
-
-  const port = process.env.PORT ?? 8001;
-  await app.listen(process.env.PORT ?? 3000);
   console.log(`Application running on: http://localhost:${port}`);
   console.log(
     `Swagger documentation available at: http://localhost:${port}/api-docs`,
   );
 }
-bootstrap();
 
+bootstrap();
 // import { NestFactory } from '@nestjs/core';
 // import { AppModule } from './app.module';
 // import cookieParser from 'cookie-parser';

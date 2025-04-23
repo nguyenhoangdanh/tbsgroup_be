@@ -5,19 +5,8 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { extractTokenFromRequest } from '../utils/token-extractor';
 
-function extractTokenFromRequest(request: Request): string | undefined {
-  // Check both cookie and Authorization header
-  const cookieToken = request.cookies?.accessToken;
-  const authHeader = request.headers.authorization;
-  const headerToken = authHeader?.startsWith('Bearer ')
-    ? authHeader.substring(7)
-    : undefined;
-
-  // Return the first available token
-  return cookieToken || headerToken;
-}
-// src/common/exceptions/auth-filter.exception.ts
 @Catch(UnauthorizedException)
 export class AuthExceptionFilter implements ExceptionFilter {
   catch(exception: UnauthorizedException, host: ArgumentsHost) {
@@ -26,9 +15,9 @@ export class AuthExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
 
     // Check if this is a Swagger UI request
-    const isSwaggerRequest = request.headers['referer']?.includes('api-docs');
+    const isSwaggerRequest = request.headers['x-from-swagger'] === 'true';
 
-    // Use the existing function to extract token
+    // Use the utility function to extract token
     const token = extractTokenFromRequest(request);
 
     // Customize message based on context
@@ -36,10 +25,19 @@ export class AuthExceptionFilter implements ExceptionFilter {
       ? 'Authentication required'
       : 'Invalid or expired token';
 
+    // For Swagger requests, we might want a more detailed response
+    const additionalInfo = isSwaggerRequest
+      ? {
+          docs: 'Please authenticate using the Authorize button in Swagger UI',
+          tokenFound: !!token,
+        }
+      : undefined;
+
     response.status(401).json({
       statusCode: 401,
       success: false,
       message: message,
+      ...additionalInfo,
       timestamp: new Date().toISOString(),
     });
   }

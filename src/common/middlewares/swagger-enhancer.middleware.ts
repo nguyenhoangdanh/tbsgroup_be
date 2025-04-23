@@ -1,4 +1,3 @@
-// src/common/middlewares/swagger-enhancer.middleware.ts
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 
@@ -9,6 +8,7 @@ export class SwaggerEnhancerMiddleware implements NestMiddleware {
     const referer = (req.headers.referer as string) || '';
     if (referer.includes('/api-docs')) {
       req.headers['x-from-swagger'] = 'true';
+      console.log('Swagger request detected:', req.path);
     }
 
     next();

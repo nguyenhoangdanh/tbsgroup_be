@@ -1,4 +1,3 @@
-// src/common/swagger/swagger.config.ts
 import { INestApplication } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
@@ -14,10 +13,19 @@ export function setupSwagger(app: INestApplication): void {
         bearerFormat: 'JWT',
         in: 'header',
         name: 'Authorization',
-        description: 'Enter your JWT token',
+        description: 'Enter your JWT token here to authorize API requests',
       },
       'JWT-auth',
     )
+    // .addCookieAuth(
+    //   'accessToken',
+    //   {
+    //     type: 'apiKey',
+    //     in: 'cookie',
+    //     name: 'accessToken',
+    //   },
+    //   'cookie-auth',
+    // )
     .build();
 
   const document = SwaggerModule.createDocument(app, options);
@@ -29,7 +37,13 @@ export function setupSwagger(app: INestApplication): void {
       docExpansion: 'none',
       filter: true,
       displayRequestDuration: true,
+      syntaxHighlight: {
+        theme: 'monokai',
+      },
     },
     customSiteTitle: 'Daily Performance API',
+    customfavIcon: 'https://nestjs.com/favicon.ico',
+    customCssUrl:
+      process.env.NODE_ENV === 'production' ? '/swagger-custom.css' : undefined,
   });
 }

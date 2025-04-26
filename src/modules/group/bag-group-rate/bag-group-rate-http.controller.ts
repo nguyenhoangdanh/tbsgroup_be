@@ -28,8 +28,10 @@ import {
 import { ErrBagGroupRateNotFound } from './bag-group-rate.model';
 import { IBagGroupRateService } from './bag-group-rate.port';
 import { ZodValidationPipe } from 'src/share/pipes/zod-validation.pipe';
+import { ApiTags } from '@nestjs/swagger';
 
 @Controller('bag-group-rates')
+@ApiTags('Bag-Group-Rates')
 @UseGuards(RemoteAuthGuard)
 export class BagGroupRateHttpController {
   private readonly logger = new Logger(BagGroupRateHttpController.name);

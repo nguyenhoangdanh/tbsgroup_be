@@ -114,7 +114,8 @@ export class RolePrismaRepository implements IRoleRepository {
       // Sử dụng startsWith thay cho contains để tận dụng index (nếu có)
       if (conditions.code) where.code = { startsWith: conditions.code };
       if (conditions.name) where.name = { contains: conditions.name };
-      if (conditions.level !== undefined) where.level = conditions.level;
+      if (conditions.level !== undefined)
+        where.level = Number(conditions.level);
       if (conditions.isSystem !== undefined)
         where.isSystem = conditions.isSystem;
 

@@ -33,6 +33,13 @@ export class AuthExceptionFilter implements ExceptionFilter {
         }
       : undefined;
 
+    console.error('Auth exception details:', {
+      url: request.url,
+      method: request.method,
+      headers: request.headers,
+      message: exception.message,
+    });
+
     response.status(401).json({
       statusCode: 401,
       success: false,

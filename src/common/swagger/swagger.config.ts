@@ -17,15 +17,15 @@ export function setupSwagger(app: INestApplication): void {
       },
       'JWT-auth',
     )
-    // .addCookieAuth(
-    //   'accessToken',
-    //   {
-    //     type: 'apiKey',
-    //     in: 'cookie',
-    //     name: 'accessToken',
-    //   },
-    //   'cookie-auth',
-    // )
+    .addCookieAuth(
+      'accessToken',
+      {
+        type: 'apiKey',
+        in: 'cookie',
+        name: 'accessToken',
+      },
+      'cookie-auth',
+    )
     .build();
 
   const document = SwaggerModule.createDocument(app, options);
@@ -41,6 +41,7 @@ export function setupSwagger(app: INestApplication): void {
         theme: 'monokai',
       },
     },
+    jsonDocumentUrl: 'swagger/json',
     customSiteTitle: 'Daily Performance API',
     customfavIcon: 'https://nestjs.com/favicon.ico',
     customCssUrl:

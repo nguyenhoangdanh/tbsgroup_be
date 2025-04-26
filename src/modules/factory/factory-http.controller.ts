@@ -26,8 +26,10 @@ import {
 } from './factory.dto';
 import { ErrFactoryNotFound } from './factory.model';
 import { IFactoryService } from './factory.port';
+import { ApiTags } from '@nestjs/swagger';
 
 @Controller('factories')
+@ApiTags('Factories')
 @UseGuards(RemoteAuthGuard)
 export class FactoryHttpController {
   private readonly logger = new Logger(FactoryHttpController.name);

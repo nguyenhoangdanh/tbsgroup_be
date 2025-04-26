@@ -1,20 +1,44 @@
-import { Controller, Inject, Get, Post, Delete, Patch, Param, Body, HttpCode, HttpStatus, Query, Request, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Inject,
+  Get,
+  Post,
+  Delete,
+  Patch,
+  Param,
+  Body,
+  HttpCode,
+  HttpStatus,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
 import { Team } from './team.model';
-import { TeamCreateDTO, TeamUpdateDTO, TeamCondDTO, TeamLeaderDTO } from './team.dto';
-import { CRUD_OPTIONS, CrudController } from 'src/CrudModule/crud.decorator';
+import {
+  TeamCreateDTO,
+  TeamUpdateDTO,
+  TeamCondDTO,
+  TeamLeaderDTO,
+} from './team.dto';
+import { CRUD_OPTIONS } from 'src/CrudModule/crud.decorator';
 import { TEAM_SERVICE } from './team.di-token';
-import { AppError, ReqWithRequester, UserRole, PagingDTO, Paginated } from 'src/share';
+import { ReqWithRequester } from 'src/share';
 import { ITeamService } from './team.port';
-import { ErrTeamNotFound } from './team.model';
-import { RemoteAuthGuard, Roles, RolesGuard } from 'src/share/guard';
+import { RemoteAuthGuard } from 'src/share/guard';
 import { BaseCrudController } from 'src/CrudModule/base-crud.controller';
+import { ApiTags } from '@nestjs/swagger';
 
-@Controller('teams') // Set the base path explicitly here
+@Controller('teams')
+@ApiTags('Teams')
 @UseGuards(RemoteAuthGuard) // Apply RemoteAuthGuard to all endpoints
-export class TeamCrudController extends BaseCrudController<Team, TeamCreateDTO, TeamUpdateDTO, TeamCondDTO> {
+export class TeamCrudController extends BaseCrudController<
+  Team,
+  TeamCreateDTO,
+  TeamUpdateDTO,
+  TeamCondDTO
+> {
   constructor(
     @Inject(TEAM_SERVICE) private readonly teamService: ITeamService,
-    @Inject(CRUD_OPTIONS) crudOptions: any
+    @Inject(CRUD_OPTIONS) crudOptions: any,
   ) {
     super(teamService, crudOptions);
   }
@@ -35,9 +59,7 @@ export class TeamCrudController extends BaseCrudController<Team, TeamCreateDTO, 
   // Team leader endpoints
   @Get(':id/leaders')
   @HttpCode(HttpStatus.OK)
-  async getTeamLeaders(
-    @Param('id') id: string
-  ) {
+  async getTeamLeaders(@Param('id') id: string) {
     const leaders = await this.teamService.getTeamLeaders(id);
     return { success: true, data: leaders };
   }

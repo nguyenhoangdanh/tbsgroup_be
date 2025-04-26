@@ -27,8 +27,10 @@ import {
 } from './group.dto';
 import { ErrGroupNotFound } from './group.model';
 import { IGroupService } from './group.port';
+import { ApiTags } from '@nestjs/swagger';
 
 @Controller('groups')
+@ApiTags('Groups')
 @UseGuards(RemoteAuthGuard)
 export class GroupHttpController {
   private readonly logger = new Logger(GroupHttpController.name);

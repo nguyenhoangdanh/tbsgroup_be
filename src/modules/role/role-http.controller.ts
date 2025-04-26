@@ -1,5 +1,6 @@
 import {
   Body,
+  Controller,
   Delete,
   Get,
   Inject,
@@ -17,17 +18,10 @@ import { PaginationDTO } from '../user/user.dto';
 import { RemoteAuthGuard, Roles, RolesGuard } from 'src/share/guard';
 import { ReqWithRequester, UserRole } from 'src/share';
 import { ZodValidationPipe } from 'src/share/pipes/zod-validation.pipe';
-import { generateClassFromZodSchema } from 'src/common/transformers/zod-to-class.transformer';
-import { ApiController } from 'src/common/decorators/api-controller.decorator';
-import {
-  ApiCreateDoc,
-  ApiGetDoc,
-  ApiGetListDoc,
-} from 'src/common/decorators/swagger.decorator';
+import { ApiTags } from '@nestjs/swagger';
 
-const RoleDTOClass = generateClassFromZodSchema(roleDTOSchema, 'RoleDTO');
-
-@ApiController('Roles', 'roles')
+@Controller('roles')
+@ApiTags('Roles')
 @UseGuards(RemoteAuthGuard, RolesGuard)
 export class RoleHttpController {
   constructor(
@@ -36,7 +30,6 @@ export class RoleHttpController {
 
   @Post()
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
-  @ApiCreateDoc(RoleDTOClass, RoleDTOClass, { summary: 'Create a new role' })
   async createRole(
     @Body(new ZodValidationPipe(roleDTOSchema)) dto: RoleDTO,
   ): Promise<{ id: string }> {
@@ -46,7 +39,6 @@ export class RoleHttpController {
 
   @Get()
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
-  @ApiGetListDoc(RoleDTOClass, { summary: 'List all roles' })
   async listRoles(
     @Query('page') page = 1,
     @Query('limit') limit = 10,
@@ -67,7 +59,7 @@ export class RoleHttpController {
     const conditions: RoleCondDTO = {};
     if (code) conditions.code = code;
     if (name) conditions.name = name;
-    if (level !== undefined) conditions.level = +level;
+    // if (level !== undefined) conditions.level = +level || 7;
     if (isSystem !== undefined) conditions.isSystem = isSystem === true;
 
     return this.roleService.listRoles(conditions, pagination);
@@ -75,7 +67,6 @@ export class RoleHttpController {
 
   @Get(':id')
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
-  @ApiGetDoc(RoleDTOClass, { summary: 'Get role by ID' })
   async getRole(@Param('id') id: string) {
     return this.roleService.getRole(id);
   }

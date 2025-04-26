@@ -24,6 +24,7 @@ import { SwaggerModule } from './common/swagger/swagger.module';
 import { SwaggerModelInterceptor } from './common/interceptors/swagger-model.interceptor';
 import { SwaggerAuthGuard } from './share/guard/swagger-auth.guard';
 import { SwaggerEnhancerMiddleware } from './common/middlewares/swagger-enhancer.middleware';
+import { AuthModule } from './modules/auth/auth.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { SwaggerEnhancerMiddleware } from './common/middlewares/swagger-enhancer
     RedisModule,
 
     // Feature modules
+    AuthModule,
     UserModule,
     RoleModule,
     FactoryModule,

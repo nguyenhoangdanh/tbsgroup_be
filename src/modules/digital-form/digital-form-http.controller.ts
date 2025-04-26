@@ -18,17 +18,106 @@ import { AppError, ReqWithRequester, UserRole } from 'src/share';
 import { RemoteAuthGuard, Roles, RolesGuard } from 'src/share/guard';
 import { DIGITAL_FORM_SERVICE } from './digital-form.di-token';
 import {
-  DigitalFormCondDTO,
-  DigitalFormCreateDTO,
-  DigitalFormEntryDTO,
-  DigitalFormSubmitDTO,
-  DigitalFormUpdateDTO,
-  PaginationDTO,
+  digitalFormCondDTOSchema,
+  digitalFormCreateDTOSchema,
+  digitalFormEntryDTOSchema,
+  digitalFormSubmitDTOSchema,
+  digitalFormUpdateDTOSchema,
+  paginationDTOSchema,
 } from './digital-form.dto';
 import { ErrFormNotFound } from './digital-form.model';
 import { IDigitalFormService } from './digital-form.port';
+import {
+  ApiBody,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { createDtoFromZodSchema } from 'src/utils/zod-to-swagger.util';
+import { ZodValidationPipe } from 'src/share/pipes/zod-validation.pipe';
+import { z } from 'zod';
+
+// Định nghĩa các DTO type từ Zod schema
+type CreateDigitalFormDto = z.infer<typeof digitalFormCreateDTOSchema>;
+type UpdateDigitalFormDto = z.infer<typeof digitalFormUpdateDTOSchema>;
+type SubmitDigitalFormDto = z.infer<typeof digitalFormSubmitDTOSchema>;
+type DigitalFormEntryDto = z.infer<typeof digitalFormEntryDTOSchema>;
+type DigitalFormCondDto = z.infer<typeof digitalFormCondDTOSchema>;
+type PaginationDto = z.infer<typeof paginationDTOSchema>;
+
+// Tạo các DTO class từ Zod schema cho Swagger
+const DigitalFormCreateDTO = createDtoFromZodSchema(
+  digitalFormCreateDTOSchema,
+  'DigitalFormCreateDTO',
+  {
+    examples: {
+      formName: 'Daily Production Form - Team A',
+      description: 'Production tracking for Team A',
+      date: '2023-04-15',
+      shiftType: 'REGULAR',
+      factoryId: '123e4567-e89b-12d3-a456-426614174000',
+      lineId: '123e4567-e89b-12d3-a456-426614174001',
+      teamId: '123e4567-e89b-12d3-a456-426614174002',
+      groupId: '123e4567-e89b-12d3-a456-426614174003',
+    },
+  },
+);
+
+const DigitalFormUpdateDTO = createDtoFromZodSchema(
+  digitalFormUpdateDTOSchema,
+  'DigitalFormUpdateDTO',
+  {
+    examples: {
+      formName: 'Updated Daily Production Form - Team A',
+      description: 'Updated production tracking for Team A',
+    },
+  },
+);
+
+const DigitalFormSubmitDTO = createDtoFromZodSchema(
+  digitalFormSubmitDTOSchema,
+  'DigitalFormSubmitDTO',
+  {
+    examples: {
+      approvalRequestId: '123e4567-e89b-12d3-a456-426614174030',
+    },
+  },
+);
+
+const DigitalFormEntryDTO = createDtoFromZodSchema(
+  digitalFormEntryDTOSchema,
+  'DigitalFormEntryDTO',
+  {
+    examples: {
+      userId: '123e4567-e89b-12d3-a456-426614174011',
+      handBagId: '123e4567-e89b-12d3-a456-426614174012',
+      bagColorId: '123e4567-e89b-12d3-a456-426614174013',
+      processId: '123e4567-e89b-12d3-a456-426614174014',
+      hourlyData: {
+        '07:30-08:30': 12,
+        '08:30-09:30': 15,
+        '09:30-10:30': 18,
+      },
+      totalOutput: 45,
+      attendanceStatus: 'PRESENT',
+      issues: [
+        {
+          type: 'WAITING_MATERIALS',
+          hour: 2,
+          impact: 20,
+          description: 'Waiting for materials for 20 minutes',
+        },
+      ],
+      qualityScore: 90,
+    },
+  },
+);
 
 @Controller('digital-forms')
+@ApiTags('Digital-forms')
 @UseGuards(RemoteAuthGuard)
 export class DigitalFormHttpController {
   private readonly logger = new Logger(DigitalFormHttpController.name);
@@ -47,9 +136,32 @@ export class DigitalFormHttpController {
     UserRole.SUPER_ADMIN,
   )
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a new digital form' })
+  @ApiBody({ type: DigitalFormCreateDTO })
+  @ApiCreatedResponse({
+    description: 'The form has been successfully created',
+    schema: {
+      properties: {
+        success: { type: 'boolean', example: true },
+        data: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              example: '123e4567-e89b-12d3-a456-426614174000',
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
   async createDigitalForm(
     @Request() req: ReqWithRequester,
-    @Body() dto: DigitalFormCreateDTO,
+    @Body(new ZodValidationPipe(digitalFormCreateDTOSchema))
+    dto: CreateDigitalFormDto,
   ) {
     const formId = await this.digitalFormService.createDigitalForm(
       req.requester,
@@ -63,21 +175,94 @@ export class DigitalFormHttpController {
 
   @Get()
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'List digital forms with filtering and pagination' })
+  @ApiOkResponse({
+    description: 'List of digital forms',
+    schema: {
+      properties: {
+        success: { type: 'boolean', example: true },
+        data: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: {
+                type: 'string',
+                example: '123e4567-e89b-12d3-a456-426614174000',
+              },
+              formCode: {
+                type: 'string',
+                example: 'PCD-230415-F01-L03-T02-G01-R-001',
+              },
+              formName: {
+                type: 'string',
+                example: 'Daily Production Form - Team A',
+              },
+              status: {
+                type: 'string',
+                enum: ['DRAFT', 'PENDING', 'CONFIRMED', 'REJECTED'],
+                example: 'DRAFT',
+              },
+              date: {
+                type: 'string',
+                format: 'date-time',
+                example: '2023-04-15T00:00:00.000Z',
+              },
+            },
+          },
+        },
+        total: { type: 'number', example: 42 },
+        page: { type: 'number', example: 1 },
+        limit: { type: 'number', example: 10 },
+      },
+    },
+  })
   async listDigitalForms(
-    @Query() conditions: DigitalFormCondDTO,
-    @Query() pagination: PaginationDTO,
+    // @Query(new ZodValidationPipe(digitalFormCondDTOSchema, true))
+    // conditions: DigitalFormCondDto,
+    // @Query(new ZodValidationPipe(paginationDTOSchema))
+    // pagination: PaginationDto,
+    @Query() queryParams: Record<string, string>,
   ) {
-    // Ensure pagination has default values
-    const validatedPagination: PaginationDTO = {
-      page: pagination.page || 1,
-      limit: pagination.limit || 10,
-      sortBy: pagination.sortBy || 'createdAt',
-      sortOrder: pagination.sortOrder || 'desc',
+    // // Ensure pagination has default values
+    // const validatedPagination: PaginationDTO = {
+    //   page: pagination.page || 1,
+    //   limit: pagination.limit || 10,
+    //   sortBy: pagination.sortBy || 'createdAt',
+    //   sortOrder: pagination.sortOrder || 'desc',
+    // };
+
+    // const result = await this.digitalFormService.listDigitalForms(
+    //   conditions,
+    //   validatedPagination,
+    // );
+
+    // Parse các điều kiện lọc
+    const conditions: DigitalFormCondDto = {};
+    if (queryParams.factoryId) conditions.factoryId = queryParams.factoryId;
+    if (queryParams.lineId) conditions.lineId = queryParams.lineId;
+    if (queryParams.teamId) conditions.teamId = queryParams.teamId;
+    if (queryParams.groupId) conditions.groupId = queryParams.groupId;
+    if (queryParams.createdById)
+      conditions.createdById = queryParams.createdById;
+    if (queryParams.status) conditions.status = queryParams.status as any; // Cast to expected enum type
+    if (queryParams.dateFrom) conditions.dateFrom = queryParams.dateFrom;
+    if (queryParams.dateTo) conditions.dateTo = queryParams.dateTo;
+    if (queryParams.shiftType)
+      conditions.shiftType = queryParams.shiftType as any; // Cast to expected enum type
+    if (queryParams.search) conditions.search = queryParams.search;
+
+    // Parse pagination
+    const pagination: PaginationDto = {
+      page: queryParams.page ? parseInt(queryParams.page, 10) : 1,
+      limit: queryParams.limit ? parseInt(queryParams.limit, 10) : 10,
+      sortBy: queryParams.sortBy || 'createdAt',
+      sortOrder: (queryParams.sortOrder as 'asc' | 'desc') || 'desc',
     };
 
     const result = await this.digitalFormService.listDigitalForms(
       conditions,
-      validatedPagination,
+      pagination,
     );
 
     return { success: true, ...result };
@@ -85,6 +270,58 @@ export class DigitalFormHttpController {
 
   @Get(':id')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get a specific digital form by ID' })
+  @ApiParam({
+    name: 'id',
+    description: 'Digital form ID',
+    type: 'string',
+    format: 'uuid',
+  })
+  @ApiOkResponse({
+    description: 'The form details',
+    schema: {
+      properties: {
+        success: { type: 'boolean', example: true },
+        data: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              example: '123e4567-e89b-12d3-a456-426614174000',
+            },
+            formCode: {
+              type: 'string',
+              example: 'PCD-230415-F01-L03-T02-G01-R-001',
+            },
+            formName: {
+              type: 'string',
+              example: 'Daily Production Form - Team A',
+            },
+            description: {
+              type: 'string',
+              example: 'Production tracking for Team A',
+            },
+            date: {
+              type: 'string',
+              format: 'date-time',
+              example: '2023-04-15T00:00:00.000Z',
+            },
+            shiftType: {
+              type: 'string',
+              enum: ['REGULAR', 'EXTENDED', 'OVERTIME'],
+              example: 'REGULAR',
+            },
+            status: {
+              type: 'string',
+              enum: ['DRAFT', 'PENDING', 'CONFIRMED', 'REJECTED'],
+              example: 'DRAFT',
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 404, description: 'Digital form not found' })
   async getDigitalForm(@Param('id') id: string) {
     try {
       const form = await this.digitalFormService.getDigitalForm(id);
@@ -120,10 +357,31 @@ export class DigitalFormHttpController {
     UserRole.SUPER_ADMIN,
   )
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Update a digital form' })
+  @ApiParam({
+    name: 'id',
+    description: 'Digital form ID',
+    type: 'string',
+    format: 'uuid',
+  })
+  @ApiBody({ type: DigitalFormUpdateDTO })
+  @ApiOkResponse({
+    description: 'The form has been successfully updated',
+    schema: {
+      properties: {
+        success: { type: 'boolean', example: true },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Digital form not found' })
   async updateDigitalForm(
     @Request() req: ReqWithRequester,
     @Param('id') id: string,
-    @Body() dto: DigitalFormUpdateDTO,
+    @Body(new ZodValidationPipe(digitalFormUpdateDTOSchema))
+    dto: UpdateDigitalFormDto,
   ) {
     await this.digitalFormService.updateDigitalForm(req.requester, id, dto);
     return { success: true };
@@ -138,6 +396,20 @@ export class DigitalFormHttpController {
     UserRole.SUPER_ADMIN,
   )
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete a digital form' })
+  @ApiParam({
+    name: 'id',
+    description: 'Digital form ID',
+    type: 'string',
+    format: 'uuid',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'The form has been successfully deleted',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Digital form not found' })
   async deleteDigitalForm(
     @Request() req: ReqWithRequester,
     @Param('id') id: string,
@@ -155,10 +427,40 @@ export class DigitalFormHttpController {
     UserRole.SUPER_ADMIN,
   )
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Add an entry to a digital form' })
+  @ApiParam({
+    name: 'id',
+    description: 'Digital form ID',
+    type: 'string',
+    format: 'uuid',
+  })
+  @ApiBody({ type: DigitalFormEntryDTO })
+  @ApiCreatedResponse({
+    description: 'The entry has been successfully created',
+    schema: {
+      properties: {
+        success: { type: 'boolean', example: true },
+        data: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              example: '123e4567-e89b-12d3-a456-426614174020',
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Digital form not found' })
   async addFormEntry(
     @Request() req: ReqWithRequester,
     @Param('id') id: string,
-    @Body() dto: DigitalFormEntryDTO,
+    @Body(new ZodValidationPipe(digitalFormEntryDTOSchema))
+    dto: DigitalFormEntryDto,
   ) {
     const entryId = await this.digitalFormService.addFormEntry(
       req.requester,
@@ -180,6 +482,26 @@ export class DigitalFormHttpController {
     UserRole.SUPER_ADMIN,
   )
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete an entry from a digital form' })
+  @ApiParam({
+    name: 'formId',
+    description: 'Digital form ID',
+    type: 'string',
+    format: 'uuid',
+  })
+  @ApiParam({
+    name: 'entryId',
+    description: 'Form entry ID',
+    type: 'string',
+    format: 'uuid',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'The entry has been successfully deleted',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Digital form or entry not found' })
   async deleteFormEntry(
     @Request() req: ReqWithRequester,
     @Param('formId') formId: string,
@@ -202,10 +524,31 @@ export class DigitalFormHttpController {
     UserRole.SUPER_ADMIN,
   )
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Submit a digital form for approval' })
+  @ApiParam({
+    name: 'id',
+    description: 'Digital form ID',
+    type: 'string',
+    format: 'uuid',
+  })
+  @ApiBody({ type: DigitalFormSubmitDTO })
+  @ApiOkResponse({
+    description: 'The form has been successfully submitted',
+    schema: {
+      properties: {
+        success: { type: 'boolean', example: true },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Digital form not found' })
   async submitDigitalForm(
     @Request() req: ReqWithRequester,
     @Param('id') id: string,
-    @Body() dto: DigitalFormSubmitDTO,
+    @Body(new ZodValidationPipe(digitalFormSubmitDTOSchema))
+    dto: SubmitDigitalFormDto,
   ) {
     await this.digitalFormService.submitDigitalForm(req.requester, id, dto);
     return { success: true };
@@ -214,7 +557,31 @@ export class DigitalFormHttpController {
   @Post(':id/approve')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
-  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Approve a submitted digital form' })
+  @ApiParam({
+    name: 'id',
+    description: 'Digital form ID',
+    type: 'string',
+    format: 'uuid',
+  })
+  @ApiOkResponse({
+    description: 'The form has been successfully approved',
+    schema: {
+      properties: {
+        success: { type: 'boolean', example: true },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - form is not in a state that can be approved',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - user does not have admin permissions',
+  })
+  @ApiResponse({ status: 404, description: 'Digital form not found' })
   async approveDigitalForm(
     @Request() req: ReqWithRequester,
     @Param('id') id: string,
@@ -227,6 +594,31 @@ export class DigitalFormHttpController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reject a submitted digital form' })
+  @ApiParam({
+    name: 'id',
+    description: 'Digital form ID',
+    type: 'string',
+    format: 'uuid',
+  })
+  @ApiOkResponse({
+    description: 'The form has been successfully rejected',
+    schema: {
+      properties: {
+        success: { type: 'boolean', example: true },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - form is not in a state that can be rejected',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - user does not have admin permissions',
+  })
+  @ApiResponse({ status: 404, description: 'Digital form not found' })
   async rejectDigitalForm(
     @Request() req: ReqWithRequester,
     @Param('id') id: string,
@@ -261,6 +653,7 @@ export class DigitalFormHttpController {
 }
 
 @Controller('digital-forms/reports')
+@ApiTags('Digital-Forms-Reports')
 @UseGuards(RemoteAuthGuard)
 export class DigitalFormReportsController {
   private readonly logger = new Logger(DigitalFormReportsController.name);

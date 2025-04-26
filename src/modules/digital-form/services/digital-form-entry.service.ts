@@ -98,7 +98,7 @@ export class DigitalFormEntryService
         checkOutTime: dto.checkOutTime ? new Date(dto.checkOutTime) : null,
         attendanceNote: dto.attendanceNote || null,
         issues,
-        qualityScore: dto.qualityScore,
+        qualityScore: dto.qualityScore || 0,
         qualityNotes: dto.qualityNotes || null,
         createdAt: new Date(),
         updatedAt: new Date(),

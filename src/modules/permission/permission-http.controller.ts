@@ -28,8 +28,10 @@ import {
 } from './permission.dto';
 import { IPermissionService } from './permission.port';
 import { UuidZodValidationPipe } from 'src/share/pipes/uuid-validation.pipe';
+import { ApiTags } from '@nestjs/swagger';
 
 @Controller('permissions')
+@ApiTags('Permissions')
 @UseGuards(RemoteAuthGuard, RolesGuard)
 export class PermissionHttpController {
   constructor(

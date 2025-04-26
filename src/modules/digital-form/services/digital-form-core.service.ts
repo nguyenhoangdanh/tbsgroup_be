@@ -299,8 +299,8 @@ export class DigitalFormCoreService
       return {
         data,
         total,
-        page: pagination.page,
-        limit: pagination.limit,
+        page: pagination.page || 0,
+        limit: pagination.limit || 10,
       };
     } catch (error) {
       this.logger.error(

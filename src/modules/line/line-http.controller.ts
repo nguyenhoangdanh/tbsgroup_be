@@ -24,6 +24,7 @@ import { ReqWithRequester } from 'src/share';
 import { ILineService } from './line.port';
 import { RemoteAuthGuard } from 'src/share/guard';
 import { BaseCrudController } from 'src/CrudModule/base-crud.controller';
+import { ApiTags } from '@nestjs/swagger';
 
 @CrudController({
   path: 'lines',
@@ -32,6 +33,7 @@ import { BaseCrudController } from 'src/CrudModule/base-crud.controller';
   updateDto: LineUpdateDTO, // Using the class directly
   conditionDto: LineCondDTO, // Using the class directly
 })
+@ApiTags('Lines')
 @UseGuards(RemoteAuthGuard) // Áp dụng RemoteAuthGuard cho tất cả các endpoints
 export class LineCrudController extends BaseCrudController<
   Line,

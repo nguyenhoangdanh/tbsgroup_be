@@ -42,6 +42,7 @@ import {
 import { createDtoFromZodSchema } from 'src/utils/zod-to-swagger.util';
 import { ZodValidationPipe } from 'src/share/pipes/zod-validation.pipe';
 import { z } from 'zod';
+import { Public } from 'src/common/decorators/public.decorator';
 
 // Create DTO classes from Zod schemas for Swagger
 const RegistrationDTOClass = createDtoFromZodSchema(
@@ -146,6 +147,7 @@ export class AuthController {
   ) {}
 
   @Post('register')
+  @Public()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Register a new user' })
   @ApiBody({ type: RegistrationDTOClass })
@@ -182,6 +184,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'User login' })
   @ApiBody({ type: LoginDTOClass })
@@ -300,6 +303,7 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Refresh an authentication token' })
   @ApiBody({ type: TokenRefreshClass, required: false })
@@ -369,6 +373,7 @@ export class AuthController {
   }
 
   @Post('request-password-reset')
+  @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Request a password reset token' })
   @ApiBody({ type: RequestPasswordResetDTOClass })
@@ -424,6 +429,7 @@ export class AuthController {
   }
 
   @Post('reset-password')
+  @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Reset user password with a token' })
   @ApiBody({ type: ResetPasswordDTOClass })
@@ -493,6 +499,7 @@ export class AuthRpcController {
   ) {}
 
   @Post('introspect')
+  @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Introspect a token (internal API)' })
   @ApiBody({ type: TokenIntrospectClass })

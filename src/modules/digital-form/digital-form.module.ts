@@ -12,6 +12,7 @@ import {
   DIGITAL_FORM_WORKFLOW_SERVICE,
   DIGITAL_FORM_REPORT_SERVICE,
   DIGITAL_FORM_EXPORT_SERVICE,
+  DIGITAL_FORM_SCHEDULER,
 } from './digital-form.di-token';
 import { DigitalFormPrismaRepository } from './digital-form-prisma.repo';
 import { DigitalFormService } from './digital-form.service';
@@ -20,7 +21,9 @@ import { DigitalFormEntryService } from './services/digital-form-entry.service';
 import { DigitalFormWorkflowService } from './services/digital-form-workflow.service';
 import { DigitalFormReportService } from './services/digital-form-report.service';
 import { DigitalFormExportService } from './services/digital-form-export.service';
-import { BaseDigitalFormService } from './services/digital-form-base.service';
+import { DigitalFormSchedulerService } from './digital-form-scheduler.service';
+import { UserPrismaRepository } from '../user/user-prisma.repo';
+import { USER_REPOSITORY } from '../user/user.di-token';
 
 @Module({
   imports: [ShareModule],
@@ -59,6 +62,17 @@ import { BaseDigitalFormService } from './services/digital-form-base.service';
       provide: DIGITAL_FORM_SERVICE,
       useClass: DigitalFormService,
     },
+
+    // Scheduler service
+    {
+      provide: DIGITAL_FORM_SCHEDULER,
+      useClass: DigitalFormSchedulerService,
+    },
+
+    {
+      provide: USER_REPOSITORY,
+      useClass: UserPrismaRepository
+    }
   ],
   exports: [
     DIGITAL_FORM_REPOSITORY,

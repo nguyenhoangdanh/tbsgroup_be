@@ -43,8 +43,6 @@ export class SwaggerAuthGuard extends RemoteAuthGuard {
         return true;
       }
 
-      console.log('11111111111-------------------', req.headers);
-
       // Check for token
       const token = extractTokenFromRequest(req);
       if (!token) {

@@ -6,6 +6,7 @@ import {
   DigitalFormSubmitDTO,
   DigitalFormUpdateDTO,
   PaginationDTO,
+  UpdateFormEntryDTO,
 } from './digital-form.dto';
 import {
   DigitalForm,
@@ -14,6 +15,7 @@ import {
   GroupProductionReport,
   LineProductionReport,
   ProductionComparisonReport,
+  ShiftType,
   TeamProductionReport,
 } from './digital-form.model';
 
@@ -43,6 +45,7 @@ export interface IDigitalFormRepository {
   ): Promise<DigitalFormEntry | null>;
   insertFormEntry(entry: DigitalFormEntry): Promise<void>;
   updateFormEntry(id: string, dto: Partial<DigitalFormEntry>): Promise<void>;
+  updateEntryShiftType(id: string, shiftType: ShiftType): Promise<void>;
   deleteFormEntry(id: string): Promise<void>;
 
   // Utility methods
@@ -424,6 +427,11 @@ export interface IDigitalFormCoreService {
     dto: DigitalFormCreateDTO,
   ): Promise<string>;
 
+  createDigitalFormForWorker(
+    workerId: string,
+    requester: Requester,
+  ): Promise<string>;
+
   getDigitalForm(id: string): Promise<DigitalForm>;
 
   getDigitalFormWithEntries(id: string): Promise<{
@@ -456,6 +464,13 @@ export interface IDigitalFormEntryService {
     formId: string,
     dto: DigitalFormEntryDTO,
   ): Promise<string>;
+
+  updateEntry(
+    requester: Requester,
+    formId: string,
+    entryId: string,
+    dto: UpdateFormEntryDTO,
+  ): Promise<void>;
 
   deleteFormEntry(
     requester: Requester,

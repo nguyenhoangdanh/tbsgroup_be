@@ -8,7 +8,6 @@ export function extractTokenFromRequest(req: any): string | null {
   // Kiểm tra Authorization header (thường được dùng bởi Swagger UI)
   const authHeader = req.headers.authorization;
 
-  console.log('authHeader--------', authHeader);
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7); // Cắt phần "Bearer "
     // console.log('Token from Authorization header:', token);

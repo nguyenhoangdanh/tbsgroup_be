@@ -60,7 +60,7 @@ export class UserHttpController {
   /**
    * User management endpoints
    */
-  @Get('users')
+  @Get()
   @UseGuards(RemoteAuthGuard, RolesGuard)
   @Roles(
     UserRole.ADMIN,

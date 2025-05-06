@@ -12,6 +12,7 @@ import {
   DigitalFormEntry,
   ErrFormAlreadySubmitted,
   RecordStatus,
+  ShiftType,
 } from '../digital-form.model';
 import { DIGITAL_FORM_REPOSITORY } from '../digital-form.di-token';
 import {
@@ -19,6 +20,9 @@ import {
   IDigitalFormCoreService,
 } from '../digital-form.port';
 import { BaseDigitalFormService } from './digital-form-base.service';
+import prisma from 'src/share/components/prisma';
+import { USER_REPOSITORY } from 'src/modules/user/user.di-token';
+import { IUserRepository } from 'src/modules/user/user.port';
 
 @Injectable()
 export class DigitalFormCoreService
@@ -28,6 +32,8 @@ export class DigitalFormCoreService
   constructor(
     @Inject(DIGITAL_FORM_REPOSITORY)
     protected readonly digitalFormRepo: IDigitalFormRepository,
+    @Inject(USER_REPOSITORY)
+    protected readonly userRepository: IUserRepository,
   ) {
     super(digitalFormRepo, DigitalFormCoreService.name);
   }
@@ -105,13 +111,37 @@ export class DigitalFormCoreService
         throw AppError.from(ErrFormAlreadySubmitted, 403);
       }
 
-      // Generate form code
+      // Lấy thông tin công nhân
+      const user = await this.userRepository.get(dto.userId);
+      if (!user) {
+        throw AppError.from(new Error(`User not found: ${dto.userId}`), 404);
+      }
+
+      // Kiểm tra công nhân có đầy đủ thông tin cần thiết không
+      if (!user.groupId || !user.teamId || !user.lineId || !user.factoryId) {
+        throw AppError.from(
+          new Error(
+            `User ${user.fullName} does not have complete organizational information`,
+          ),
+          400,
+        );
+      }
+
+      // Tạo formName và description mặc định nếu không được cung cấp
+      const formName = dto.formName || `Phiếu công đoạn - ${user.fullName}`;
+      // const description =
+      //   dto.description || `Theo dõi sản lượng ${user.fullName}`;
+
+      // Lấy ngày hiện tại nếu không được cung cấp
+      const date = dto.date ? new Date(dto.date) : new Date();
+
+      // Tạo form code
       const formCode = await this.generateFormCode(
-        dto.factoryId,
-        dto.lineId,
-        dto.teamId,
-        dto.groupId,
-        dto.date,
+        user.factoryId,
+        user.lineId,
+        user.teamId,
+        user.groupId,
+        date.toISOString(),
         dto.shiftType,
       );
 
@@ -120,14 +150,14 @@ export class DigitalFormCoreService
       const newForm: DigitalForm = {
         id: newId,
         formCode,
-        formName: dto.formName || `Phiếu công đoạn ${formCode}`,
+        formName,
         description: dto.description || null,
         date: new Date(dto.date),
         shiftType: dto.shiftType,
-        factoryId: dto.factoryId,
-        lineId: dto.lineId,
-        teamId: dto.teamId,
-        groupId: dto.groupId,
+        factoryId: user.factoryId,
+        lineId: user.lineId,
+        teamId: user.teamId,
+        groupId: user.groupId,
         status: RecordStatus.DRAFT,
         createdById: requester.sub,
         createdAt: new Date(),
@@ -156,6 +186,113 @@ export class DigitalFormCoreService
 
       throw AppError.from(
         new Error(`Error creating digital form: ${error.message}`),
+        400,
+      );
+    }
+  }
+
+  // digital-form-core.service.ts
+
+  /**
+   * Tạo digital form cho một công nhân cụ thể
+   */
+  async createDigitalFormForWorker(
+    workerId: string,
+    requester: Requester,
+  ): Promise<string> {
+    try {
+      // Lấy thông tin công nhân
+      const worker = await prisma.user.findUnique({
+        where: { id: workerId },
+        include: {
+          group: true,
+          team: true,
+          line: true,
+          factory: true,
+        },
+      });
+
+      const date = new Date();
+      const isoString = date.toISOString();
+
+      if (!worker) {
+        throw AppError.from(
+          new Error(`Không tìm thấy công nhân: ${workerId}`),
+          404,
+        );
+      }
+
+      if (
+        !worker.factoryId ||
+        !worker.lineId ||
+        !worker.teamId ||
+        !worker.groupId
+      ) {
+        throw AppError.from(
+          new Error(
+            `Không tìm thấy các mối quan hệ phụ thuộc của công nhân: ${workerId}`,
+          ),
+          404,
+        );
+      }
+
+      // Tạo form code
+      const formCode = await this.generateFormCode(
+        worker.factoryId,
+        worker.lineId,
+        worker.teamId,
+        worker.groupId,
+        isoString,
+        ShiftType.REGULAR,
+      );
+
+      // Tạo form name và description
+      const formName = `Phiếu công đoạn - ${worker.fullName}`;
+      const description = `Theo dõi sản lượng ${worker.fullName}`;
+
+      // Tạo digital form mới
+      const newId = uuidv4();
+      const newForm: DigitalForm = {
+        id: newId,
+        formCode,
+        formName,
+        description,
+        date: new Date(),
+        shiftType: ShiftType.REGULAR,
+        factoryId: worker.factoryId || '',
+        lineId: worker.lineId || '',
+        teamId: worker.teamId || '',
+        groupId: worker.groupId || '',
+        status: RecordStatus.DRAFT,
+        createdById: requester.sub,
+        createdAt: new Date(),
+        updatedById: requester.sub,
+        updatedAt: new Date(),
+        submitTime: null,
+        approvalRequestId: null,
+        approvedAt: null,
+        isExported: false,
+        syncStatus: null,
+      };
+
+      await this.digitalFormRepo.insertDigitalForm(newForm);
+      this.logger.log(
+        `Đã tạo digital form cho công nhân ${worker.fullName}: ${formCode} (${newId})`,
+      );
+
+      return newId;
+    } catch (error) {
+      this.logger.error(
+        `Error creating digital form for worker: ${error.message}`,
+        error.stack,
+      );
+
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw AppError.from(
+        new Error(`Error creating digital form for worker: ${error.message}`),
         400,
       );
     }

@@ -16,7 +16,12 @@ import {
 } from '@nestjs/common';
 import { AppError, ReqWithRequester, UserRole } from 'src/share';
 import { RemoteAuthGuard, Roles, RolesGuard } from 'src/share/guard';
-import { DIGITAL_FORM_SERVICE } from './digital-form.di-token';
+import {
+  DIGITAL_FORM_CORE_SERVICE,
+  DIGITAL_FORM_ENTRY_SERVICE,
+  DIGITAL_FORM_SCHEDULER,
+  DIGITAL_FORM_SERVICE,
+} from './digital-form.di-token';
 import {
   digitalFormCondDTOSchema,
   digitalFormCreateDTOSchema,
@@ -24,8 +29,14 @@ import {
   digitalFormSubmitDTOSchema,
   digitalFormUpdateDTOSchema,
   paginationDTOSchema,
+  UpdateFormEntryDTO,
+  updateFormEntryDTOSchema,
 } from './digital-form.dto';
-import { ErrFormNotFound } from './digital-form.model';
+import {
+  AttendanceStatus,
+  ErrFormNotFound,
+  ShiftType,
+} from './digital-form.model';
 import { IDigitalFormService } from './digital-form.port';
 import {
   ApiBody,
@@ -39,6 +50,9 @@ import {
 import { createDtoFromZodSchema } from 'src/utils/zod-to-swagger.util';
 import { ZodValidationPipe } from 'src/share/pipes/zod-validation.pipe';
 import { z } from 'zod';
+import { DigitalFormSchedulerService } from './digital-form-scheduler.service';
+import { DigitalFormCoreService } from './services/digital-form-core.service';
+import { DigitalFormEntryService } from './services/digital-form-entry.service';
 
 // Định nghĩa các DTO type từ Zod schema
 type CreateDigitalFormDto = z.infer<typeof digitalFormCreateDTOSchema>;
@@ -47,15 +61,15 @@ type SubmitDigitalFormDto = z.infer<typeof digitalFormSubmitDTOSchema>;
 type DigitalFormEntryDto = z.infer<typeof digitalFormEntryDTOSchema>;
 type DigitalFormCondDto = z.infer<typeof digitalFormCondDTOSchema>;
 type PaginationDto = z.infer<typeof paginationDTOSchema>;
-
+type UpdateFormEntryDto = z.infer<typeof updateFormEntryDTOSchema>;
 // Tạo các DTO class từ Zod schema cho Swagger
 const DigitalFormCreateDTO = createDtoFromZodSchema(
   digitalFormCreateDTOSchema,
   'DigitalFormCreateDTO',
   {
     examples: {
-      formName: 'Daily Production Form - Team A',
-      description: 'Production tracking for Team A',
+      formName: 'Daily Production Form - Group A',
+      description: 'Production tracking for Group A',
       date: '2023-04-15',
       shiftType: 'REGULAR',
       factoryId: '123e4567-e89b-12d3-a456-426614174000',
@@ -71,8 +85,8 @@ const DigitalFormUpdateDTO = createDtoFromZodSchema(
   'DigitalFormUpdateDTO',
   {
     examples: {
-      formName: 'Updated Daily Production Form - Team A',
-      description: 'Updated production tracking for Team A',
+      formName: 'Updated Daily Production Form - Group A',
+      description: 'Updated production tracking for Group A',
     },
   },
 );
@@ -116,6 +130,32 @@ const DigitalFormEntryDTO = createDtoFromZodSchema(
   },
 );
 
+const UpdateDigitalFormEntryDTO = createDtoFromZodSchema(
+  updateFormEntryDTOSchema,
+  'UpdateDigitalFormEntryDTO',
+  {
+    examples: {
+      hourlyData: {
+        '07:30-08:30': 12,
+        '08:30-09:30': 15,
+        '09:30-10:30': 18,
+      },
+      totalOutput: 45,
+      attendanceStatus: 'PRESENT',
+      shiftType: 'REGULAR',
+      issues: [
+        {
+          type: 'WAITING_MATERIALS',
+          hour: 2,
+          impact: 20,
+          description: 'Waiting for materials for 20 minutes',
+        },
+      ],
+      qualityScore: 90,
+    },
+  },
+);
+
 @Controller('digital-forms')
 @ApiTags('Digital-forms')
 @UseGuards(RemoteAuthGuard)
@@ -125,6 +165,12 @@ export class DigitalFormHttpController {
   constructor(
     @Inject(DIGITAL_FORM_SERVICE)
     private readonly digitalFormService: IDigitalFormService,
+    @Inject(DIGITAL_FORM_SCHEDULER)
+    private readonly schedulerService: DigitalFormSchedulerService,
+    @Inject(DIGITAL_FORM_CORE_SERVICE)
+    private readonly coreService: DigitalFormCoreService,
+    @Inject(DIGITAL_FORM_ENTRY_SERVICE)
+    private readonly formEntryService: DigitalFormEntryService,
   ) {}
 
   @Post()
@@ -171,6 +217,33 @@ export class DigitalFormHttpController {
       success: true,
       data: { id: formId },
     };
+  }
+
+  @Post('generate-daily')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Tạo thủ công digital forms hàng ngày' })
+  async generateDailyForms() {
+    try {
+      // Gọi service để tạo form
+      await this.schedulerService.runDailyFormCreationManually();
+      return { success: true, message: 'Đã khởi tạo tạo forms thành công' };
+    } catch (error) {
+      this.logger.error(
+        `Error generating daily forms: ${error.message}`,
+        error.stack,
+      );
+
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw AppError.from(
+        new Error(`Error generating daily forms: ${error.message}`),
+        500,
+      );
+    }
   }
 
   @Get()
@@ -348,6 +421,70 @@ export class DigitalFormHttpController {
     }
   }
 
+  // Thêm vào digital-form-http.controller.ts
+  @Post('worker/:workerId')
+  @UseGuards(RolesGuard)
+  @Roles(
+    UserRole.TEAM_LEADER,
+    UserRole.LINE_MANAGER,
+    UserRole.ADMIN,
+    UserRole.SUPER_ADMIN,
+  )
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Tạo digital form cho một công nhân cụ thể' })
+  @ApiParam({
+    name: 'workerId',
+    description: 'ID của công nhân',
+    type: 'string',
+    format: 'uuid',
+  })
+  @ApiCreatedResponse({
+    description: 'Tạo form thành công',
+    schema: {
+      properties: {
+        success: { type: 'boolean', example: true },
+        data: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              example: '123e4567-e89b-12d3-a456-426614174000',
+            },
+          },
+        },
+      },
+    },
+  })
+  async createDigitalFormForWorker(
+    @Request() req: ReqWithRequester,
+    @Param('workerId') workerId: string,
+  ) {
+    try {
+      const formId = await this.coreService.createDigitalFormForWorker(
+        workerId,
+        req.requester,
+      );
+      return {
+        success: true,
+        data: { id: formId },
+      };
+    } catch (error) {
+      this.logger.error(
+        `Error creating digital form for worker: ${error.message}`,
+        error.stack,
+      );
+
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw AppError.from(
+        new Error(`Error creating digital form for worker: ${error.message}`),
+        400,
+      );
+    }
+  }
+
   @Patch(':id')
   @UseGuards(RolesGuard)
   @Roles(
@@ -471,6 +608,309 @@ export class DigitalFormHttpController {
       success: true,
       data: { id: entryId },
     };
+  }
+
+  @Patch(':formId/entries/:entryId')
+  @UseGuards(RolesGuard)
+  @Roles(
+    UserRole.TEAM_LEADER,
+    UserRole.LINE_MANAGER,
+    UserRole.ADMIN,
+    UserRole.SUPER_ADMIN,
+  )
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Update a form entry' })
+  @ApiParam({
+    name: 'formId',
+    description: 'Digital form ID',
+    type: 'string',
+    format: 'uuid',
+  })
+  @ApiParam({
+    name: 'entryId',
+    description: 'Form entry ID',
+    type: 'string',
+    format: 'uuid',
+  })
+  @ApiBody({ type: UpdateDigitalFormEntryDTO })
+  @ApiResponse({
+    status: 200,
+    description: 'Entry updated successfully',
+  })
+  async updateFormEntry(
+    @Request() req: ReqWithRequester,
+    @Param('formId') formId: string,
+    @Param('entryId') entryId: string,
+    @Body(new ZodValidationPipe(updateFormEntryDTOSchema))
+    dto: UpdateFormEntryDto,
+  ) {
+    await this.formEntryService.updateEntry(
+      req.requester,
+      formId,
+      entryId,
+      dto,
+    );
+    return { success: true };
+  }
+
+  @Patch(':formId/entries/:entryId/hourly-data')
+  @UseGuards(RolesGuard)
+  @Roles(
+    UserRole.TEAM_LEADER,
+    UserRole.LINE_MANAGER,
+    UserRole.ADMIN,
+    UserRole.SUPER_ADMIN,
+  )
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Cập nhật dữ liệu theo giờ của một entry' })
+  @ApiParam({
+    name: 'formId',
+    description: 'ID của digital form',
+    type: 'string',
+    format: 'uuid',
+  })
+  @ApiParam({
+    name: 'entryId',
+    description: 'ID của form entry',
+    type: 'string',
+    format: 'uuid',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        hourlyData: {
+          type: 'object',
+          additionalProperties: {
+            type: 'number',
+          },
+          description: 'Dữ liệu sản lượng theo từng khoảng thời gian',
+          example: {
+            '07:30-08:30': 12,
+            '08:30-09:30': 15,
+            '09:30-10:30': 18,
+          },
+        },
+      },
+      required: ['hourlyData'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Dữ liệu theo giờ đã được cập nhật thành công',
+  })
+  async updateEntryHourlyData(
+    @Request() req: ReqWithRequester,
+    @Param('formId') formId: string,
+    @Param('entryId') entryId: string,
+    @Body() dto: { hourlyData: Record<string, number> },
+  ) {
+    try {
+      // Tạo đối tượng UpdateFormEntryDTO chỉ với hourlyData
+      const updateDto: UpdateFormEntryDTO = {
+        hourlyData: dto.hourlyData,
+      };
+
+      // Gọi service để cập nhật entry
+      await this.formEntryService.updateEntry(
+        req.requester,
+        formId,
+        entryId,
+        updateDto,
+      );
+
+      return { success: true };
+    } catch (error) {
+      this.logger.error(
+        `Error updating entry hourly data: ${error.message}`,
+        error.stack,
+      );
+
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw AppError.from(
+        new Error(`Error updating entry hourly data: ${error.message}`),
+        400,
+      );
+    }
+  }
+
+  @Patch(':formId/entries/:entryId/attendance')
+  @UseGuards(RolesGuard)
+  @Roles(
+    UserRole.TEAM_LEADER,
+    UserRole.LINE_MANAGER,
+    UserRole.ADMIN,
+    UserRole.SUPER_ADMIN,
+  )
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Cập nhật trạng thái điểm danh của một entry' })
+  @ApiParam({
+    name: 'formId',
+    description: 'ID của digital form',
+    type: 'string',
+    format: 'uuid',
+  })
+  @ApiParam({
+    name: 'entryId',
+    description: 'ID của form entry',
+    type: 'string',
+    format: 'uuid',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        attendanceStatus: {
+          type: 'string',
+          enum: ['PRESENT', 'ABSENT', 'LATE', 'EARLY_LEAVE', 'LEAVE_APPROVED'],
+          description: 'Trạng thái điểm danh',
+          example: 'PRESENT',
+        },
+        attendanceNote: {
+          type: 'string',
+          description: 'Ghi chú điểm danh',
+          example: 'Đi làm đúng giờ',
+        },
+      },
+      required: ['attendanceStatus'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Trạng thái điểm danh đã được cập nhật thành công',
+  })
+  async updateEntryAttendance(
+    @Request() req: ReqWithRequester,
+    @Param('formId') formId: string,
+    @Param('entryId') entryId: string,
+    @Body() dto: { attendanceStatus: string; attendanceNote?: string },
+  ) {
+    try {
+      // Validate attendance status
+      if (
+        !Object.values(AttendanceStatus).includes(
+          dto.attendanceStatus as AttendanceStatus,
+        )
+      ) {
+        throw AppError.from(
+          new Error(`Invalid attendance status: ${dto.attendanceStatus}`),
+          400,
+        );
+      }
+
+      // Tạo đối tượng UpdateFormEntryDTO chỉ với attendanceStatus và attendanceNote
+      const updateDto: UpdateFormEntryDTO = {
+        attendanceStatus: dto.attendanceStatus as AttendanceStatus,
+        attendanceNote: dto.attendanceNote,
+      };
+
+      // Gọi service để cập nhật entry
+      await this.formEntryService.updateEntry(
+        req.requester,
+        formId,
+        entryId,
+        updateDto,
+      );
+
+      return { success: true };
+    } catch (error) {
+      this.logger.error(
+        `Error updating entry attendance: ${error.message}`,
+        error.stack,
+      );
+
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw AppError.from(
+        new Error(`Error updating entry attendance: ${error.message}`),
+        400,
+      );
+    }
+  }
+
+  @Patch(':formId/entries/:entryId/shift-type')
+  @UseGuards(RolesGuard)
+  @Roles(
+    UserRole.TEAM_LEADER,
+    UserRole.LINE_MANAGER,
+    UserRole.ADMIN,
+    UserRole.SUPER_ADMIN,
+  )
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Update shift type for a form entry' })
+  @ApiParam({
+    name: 'formId',
+    description: 'Digital form ID',
+    type: 'string',
+    format: 'uuid',
+  })
+  @ApiParam({
+    name: 'entryId',
+    description: 'Form entry ID',
+    type: 'string',
+    format: 'uuid',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        shiftType: {
+          type: 'string',
+          enum: ['REGULAR', 'EXTENDED', 'OVERTIME'],
+          description: 'New shift type',
+        },
+      },
+      required: ['shiftType'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Shift type updated successfully',
+  })
+  async updateEntryShiftType(
+    @Request() req: ReqWithRequester,
+    @Param('formId') formId: string,
+    @Param('entryId') entryId: string,
+    @Body() dto: { shiftType: string },
+  ) {
+    try {
+      // Validate shift type
+      if (!Object.values(ShiftType).includes(dto.shiftType as ShiftType)) {
+        throw AppError.from(
+          new Error(`Invalid shift type: ${dto.shiftType}`),
+          400,
+        );
+      }
+
+      // Call the service to update the entry shift type
+      await this.formEntryService.updateEntryShiftType(
+        req.requester,
+        formId,
+        entryId,
+        dto.shiftType as ShiftType,
+      );
+
+      return { success: true };
+    } catch (error) {
+      this.logger.error(
+        `Error updating entry shift type: ${error.message}`,
+        error.stack,
+      );
+
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw AppError.from(
+        new Error(`Error updating entry shift type: ${error.message}`),
+        400,
+      );
+    }
   }
 
   @Delete(':formId/entries/:entryId')

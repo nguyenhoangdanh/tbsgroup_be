@@ -75,7 +75,6 @@ export class RemoteAuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const response = context.switchToHttp().getResponse();
 
-    console.log('request---------------------123', request.headers);
     const token = extractTokenFromRequest(request);
     if (!token) {
       throw new UnauthorizedException('Bạn cần đăng nhập để truy cập');

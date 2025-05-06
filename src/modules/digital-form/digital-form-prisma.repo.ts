@@ -20,6 +20,9 @@ import {
   ShiftType,
 } from './digital-form.model';
 import { IDigitalFormRepository } from './digital-form.port';
+import { User } from '../user/user.model';
+import { BagColor, HandBag } from '../handbag/handbag.model';
+import { BagProcess } from '../handbag/process/bag-process.model';
 
 @Injectable()
 export class DigitalFormPrismaRepository implements IDigitalFormRepository {
@@ -200,7 +203,23 @@ export class DigitalFormPrismaRepository implements IDigitalFormRepository {
     };
   }
 
-  private _toDigitalFormEntryModel(data: PrismaFormEntry): DigitalFormEntry {
+  /**
+   * Convert DB model to Domain model with relations
+   * The input parameter type includes the relation properties
+   */
+  private _toDigitalFormEntryModel(
+    data: PrismaFormEntry & {
+      user?: any;
+      handBag?: any;
+      process?: any;
+      bagColor?: any;
+    },
+  ): DigitalFormEntry & {
+    user?: User;
+    handBag?: HandBag;
+    process?: BagProcess;
+    bagColor?: BagColor;
+  } {
     // Safely parse hourlyData from JSON
     let hourlyData: Record<string, number> = {};
     try {
@@ -231,6 +250,7 @@ export class DigitalFormPrismaRepository implements IDigitalFormRepository {
       );
     }
 
+    // Create an instance of DigitalFormEntry with relations
     return {
       id: data.id,
       formId: data.formId,
@@ -241,6 +261,7 @@ export class DigitalFormPrismaRepository implements IDigitalFormRepository {
       hourlyData,
       totalOutput: data.totalOutput,
       attendanceStatus: this._mapAttendanceStatus(data.attendanceStatus),
+      shiftType: this._mapShiftType(data.shiftType),
       checkInTime: data.checkInTime ? new Date(data.checkInTime) : null,
       checkOutTime: data.checkOutTime ? new Date(data.checkOutTime) : null,
       attendanceNote: data.attendanceNote,
@@ -249,6 +270,12 @@ export class DigitalFormPrismaRepository implements IDigitalFormRepository {
       qualityNotes: data.qualityNotes,
       createdAt: new Date(data.createdAt),
       updatedAt: new Date(data.updatedAt),
+
+      // Include related entities if they exist
+      user: data.user || undefined,
+      handBag: data.handBag || undefined,
+      process: data.process || undefined,
+      bagColor: data.bagColor || undefined,
     };
   }
 
@@ -336,7 +363,7 @@ export class DigitalFormPrismaRepository implements IDigitalFormRepository {
         const recordStatus = conditions.status as RecordStatus;
         whereClause.status = this._mapToDbRecordStatus(recordStatus);
       } catch (error) {
-        this.logger.warn(`Invalid status value: ${conditions.status}`);
+        this.logger.warn(`Invalid status value: ${conditions.status}`, error);
         whereClause.status = PrismaRecordStatus.DRAFT;
       }
     }
@@ -347,7 +374,10 @@ export class DigitalFormPrismaRepository implements IDigitalFormRepository {
         const shiftType = conditions.shiftType as ShiftType;
         whereClause.shiftType = this._mapToDbShiftType(shiftType);
       } catch (error) {
-        this.logger.warn(`Invalid shiftType value: ${conditions.shiftType}`);
+        this.logger.warn(
+          `Invalid shiftType value: ${conditions.shiftType}`,
+          error,
+        );
         whereClause.shiftType = PrismaShiftType.REGULAR;
       }
     }
@@ -560,6 +590,12 @@ export class DigitalFormPrismaRepository implements IDigitalFormRepository {
     try {
       const entries = await prisma.productionFormEntry.findMany({
         where: { formId },
+        include: {
+          user: true,
+          handBag: true,
+          process: true,
+          bagColor: true,
+        },
         orderBy: [{ userId: 'asc' }, { processId: 'asc' }],
       });
 
@@ -668,13 +704,53 @@ export class DigitalFormPrismaRepository implements IDigitalFormRepository {
       // Filter out undefined values to avoid unintended updates
       const updateData: Prisma.ProductionFormEntryUpdateInput = {};
 
+      // if (dto.hourlyData !== undefined) {
+      //   if (Object.keys(dto.hourlyData).length === 0) {
+      //     // For empty objects, use JsonNull
+      //     updateData.hourlyData = Prisma.JsonNull;
+      //   } else {
+      //     // For non-empty objects, use explicit type assertion
+      //     updateData.hourlyData = dto.hourlyData as Prisma.InputJsonValue;
+      //   }
+      // }
+
       if (dto.hourlyData !== undefined) {
-        if (Object.keys(dto.hourlyData).length === 0) {
-          // For empty objects, use JsonNull
-          updateData.hourlyData = Prisma.JsonNull;
+        // First, get the current entry to access existing hourlyData
+        const currentEntry = await prisma.productionFormEntry.findUnique({
+          where: { id },
+        });
+
+        if (currentEntry) {
+          // Get existing hourly data - ensure it's a valid object or default to empty object
+          const existingHourlyData =
+            (currentEntry.hourlyData as Record<string, number>) || {};
+          // Create a copy to update
+          const updatedHourlyData: Record<string, number> = {
+            ...existingHourlyData,
+          };
+
+          // Only update values for time slots that already exist
+          Object.keys(dto.hourlyData || {}).forEach((timeSlot) => {
+            if (timeSlot in existingHourlyData && dto.hourlyData) {
+              updatedHourlyData[timeSlot] = dto.hourlyData[timeSlot];
+            }
+          });
+
+          // Use the filtered hourlyData for update
+          if (Object.keys(updatedHourlyData).length === 0) {
+            // For empty objects, use JsonNull
+            updateData.hourlyData = Prisma.JsonNull;
+          } else {
+            // For non-empty objects, use the filtered data
+            updateData.hourlyData = updatedHourlyData as Prisma.InputJsonValue;
+          }
         } else {
-          // For non-empty objects, use explicit type assertion
-          updateData.hourlyData = dto.hourlyData as Prisma.InputJsonValue;
+          // Fallback to original behavior if entry not found
+          if (dto.hourlyData && Object.keys(dto.hourlyData).length === 0) {
+            updateData.hourlyData = Prisma.JsonNull;
+          } else {
+            updateData.hourlyData = dto.hourlyData as Prisma.InputJsonValue;
+          }
         }
       }
 
@@ -720,6 +796,88 @@ export class DigitalFormPrismaRepository implements IDigitalFormRepository {
     } catch (error) {
       this.logger.error(
         `Error updating form entry ${id}: ${error.message}`,
+        error.stack,
+      );
+      throw error; // Preserve original error
+    }
+  }
+
+  async updateEntryShiftType(id: string, shiftType: ShiftType): Promise<void> {
+    try {
+      // First, get the current entry to access existing hourlyData
+      const currentEntry = await prisma.productionFormEntry.findUnique({
+        where: { id }
+      });
+  
+      if (!currentEntry) {
+        throw new Error(`Form entry not found: ${id}`);
+      }
+  
+      // Map the ShiftType enum to Prisma ShiftType
+      const dbShiftType = this._mapToDbShiftType(shiftType);
+  
+      // Get existing hourly data - ensure it's a valid object or default to empty object
+      const existingHourlyData = (currentEntry.hourlyData as Record<string, number>) || {};
+      
+      // Create a copy to update - we'll rebuild this based on the new shift type
+      const updatedHourlyData: Record<string, number> = {};
+      
+      // Regular shift time slots (standard for all shift types)
+      const regularTimeSlots = [
+        '07:30-08:30', '08:30-09:30', '09:30-10:30', '10:30-11:30', 
+        '12:30-13:30', '13:30-14:30', '14:30-15:30', '15:30-16:30'
+      ];
+      
+      // Extended shift adds these time slots
+      const extendedTimeSlots = ['16:30-17:30', '17:30-18:00'];
+      
+      // Overtime shift adds these time slots
+      const overtimeTimeSlots = ['18:00-19:00', '19:00-20:00'];
+      
+      // First, copy all regular time slots that exist in the current hourlyData
+      regularTimeSlots.forEach(timeSlot => {
+        if (timeSlot in existingHourlyData) {
+          updatedHourlyData[timeSlot] = existingHourlyData[timeSlot];
+        } else {
+          // Add any missing regular time slots with default value 0
+          updatedHourlyData[timeSlot] = 0;
+        }
+      });
+      
+      // If extended or overtime shift, add extended time slots
+      if (shiftType === ShiftType.EXTENDED || shiftType === ShiftType.OVERTIME) {
+        extendedTimeSlots.forEach(timeSlot => {
+          // If the time slot already exists, keep its value, otherwise set to 0
+          updatedHourlyData[timeSlot] = timeSlot in existingHourlyData 
+            ? existingHourlyData[timeSlot] 
+            : 0;
+        });
+      }
+      
+      // If overtime shift, add overtime time slots
+      if (shiftType === ShiftType.OVERTIME) {
+        overtimeTimeSlots.forEach(timeSlot => {
+          // If the time slot already exists, keep its value, otherwise set to 0
+          updatedHourlyData[timeSlot] = timeSlot in existingHourlyData 
+            ? existingHourlyData[timeSlot] 
+            : 0;
+        });
+      }
+      
+      // Update the entry with the new shift type and hourly data
+      await prisma.productionFormEntry.update({
+        where: { id },
+        data: {
+          shiftType: dbShiftType,
+          hourlyData: updatedHourlyData as Prisma.InputJsonValue,
+          updatedAt: new Date(),
+        },
+      });
+  
+      this.logger.log(`Updated entry ${id} shift type to ${shiftType} with adjusted hourly data`);
+    } catch (error) {
+      this.logger.error(
+        `Error updating entry shift type for ${id}: ${error.message}`,
         error.stack,
       );
       throw error; // Preserve original error

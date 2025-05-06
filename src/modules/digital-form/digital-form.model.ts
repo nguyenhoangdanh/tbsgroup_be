@@ -1,4 +1,7 @@
 import { z } from 'zod';
+import { userSchema } from '../user/user.model';
+import { bagColorSchema, handBagSchema } from '../handbag/handbag.model';
+import { bagProcessSchema } from '../handbag/process/bag-process.model';
 
 // Business errors
 export const ErrFormNotFound = new Error('Digital form not found');
@@ -97,6 +100,7 @@ export const digitalFormEntrySchema = z.object({
   attendanceStatus: z
     .nativeEnum(AttendanceStatus)
     .default(AttendanceStatus.PRESENT),
+  shiftType: z.nativeEnum(ShiftType).default(ShiftType.REGULAR),
   checkInTime: z.date().nullable(),
   checkOutTime: z.date().nullable(),
   attendanceNote: z.string().nullable(),
@@ -123,6 +127,16 @@ export const digitalFormEntrySchema = z.object({
 });
 
 export type DigitalFormEntry = z.infer<typeof digitalFormEntrySchema>;
+export const digitalFormEntryWithRelationsSchema =
+  digitalFormEntrySchema.extend({
+    user: userSchema.optional(),
+    handBag: handBagSchema.optional(),
+    process: bagProcessSchema.optional(),
+    bagColor: bagColorSchema.optional(),
+  });
+export type DigitalFormEntryWithRelations = z.infer<
+  typeof digitalFormEntryWithRelationsSchema
+>;
 
 // Summary data model for reports
 export interface ProductionSummary {

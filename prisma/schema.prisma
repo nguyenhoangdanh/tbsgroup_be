@@ -851,6 +851,7 @@ model ProductionFormEntry {
 
   // Thông tin điểm danh tích hợp
   attendanceStatus AttendanceStatus @default(PRESENT) @map("attendance_status")
+  shiftType        ShiftType        @default(REGULAR) @map("shift_type")
   checkInTime      DateTime?        @map("check_in_time") @db.Timestamp(0)
   checkOutTime     DateTime?        @map("check_out_time") @db.Timestamp(0)
   attendanceNote   String?          @map("attendance_note") @db.VarChar(255)

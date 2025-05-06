@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ApiProperty, ApiPropertyOptions } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 import {
   ShiftType,
   AttendanceStatus,
@@ -7,15 +7,15 @@ import {
 } from './digital-form.model';
 
 // Helper function to add Swagger ApiProperty to class properties
-function ApiPropertyFromZod(
-  zodSchema: z.ZodTypeAny,
-  options: ApiPropertyOptions = {},
-) {
-  return ApiProperty({
-    required: !zodSchema.isOptional(),
-    ...options,
-  });
-}
+// function ApiPropertyFromZod(
+//   zodSchema: z.ZodTypeAny,
+//   options: ApiPropertyOptions = {},
+// ) {
+//   return ApiProperty({
+//     required: !zodSchema.isOptional(),
+//     ...options,
+//   });
+// }
 
 // Base pagination DTO
 export const paginationDTOSchema = z.object({
@@ -63,17 +63,26 @@ export class PaginationDTO {
 
 // Digital Form Create DTO
 export const digitalFormCreateDTOSchema = z.object({
+  userId: z.string().uuid(),
   formName: z.string().optional(),
   description: z.string().optional(),
   date: z.string(), // ISO date string
   shiftType: z.nativeEnum(ShiftType),
-  factoryId: z.string().uuid(),
-  lineId: z.string().uuid(),
-  teamId: z.string().uuid(),
-  groupId: z.string().uuid(),
+  // factoryId: z.string().uuid(),
+  // lineId: z.string().uuid(),
+  // teamId: z.string().uuid(),
+  // groupId: z.string().uuid(),
 });
 
 export class DigitalFormCreateDTO {
+  @ApiProperty({
+    description: 'User ID',
+    format: 'uuid',
+    required: true,
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  userId: string;
+
   @ApiProperty({
     description: 'Name of the digital form',
     required: false,
@@ -103,37 +112,37 @@ export class DigitalFormCreateDTO {
   })
   shiftType: ShiftType;
 
-  @ApiProperty({
-    description: 'Factory ID',
-    format: 'uuid',
-    required: true,
-    example: '123e4567-e89b-12d3-a456-426614174000',
-  })
-  factoryId: string;
+  // @ApiProperty({
+  //   description: 'Factory ID',
+  //   format: 'uuid',
+  //   required: true,
+  //   example: '123e4567-e89b-12d3-a456-426614174000',
+  // })
+  // factoryId: string;
 
-  @ApiProperty({
-    description: 'Line ID',
-    format: 'uuid',
-    required: true,
-    example: '123e4567-e89b-12d3-a456-426614174001',
-  })
-  lineId: string;
+  // @ApiProperty({
+  //   description: 'Line ID',
+  //   format: 'uuid',
+  //   required: true,
+  //   example: '123e4567-e89b-12d3-a456-426614174001',
+  // })
+  // lineId: string;
 
-  @ApiProperty({
-    description: 'Team ID',
-    format: 'uuid',
-    required: true,
-    example: '123e4567-e89b-12d3-a456-426614174002',
-  })
-  teamId: string;
+  // @ApiProperty({
+  //   description: 'Team ID',
+  //   format: 'uuid',
+  //   required: true,
+  //   example: '123e4567-e89b-12d3-a456-426614174002',
+  // })
+  // teamId: string;
 
-  @ApiProperty({
-    description: 'Group ID',
-    format: 'uuid',
-    required: true,
-    example: '123e4567-e89b-12d3-a456-426614174003',
-  })
-  groupId: string;
+  // @ApiProperty({
+  //   description: 'Group ID',
+  //   format: 'uuid',
+  //   required: true,
+  //   example: '123e4567-e89b-12d3-a456-426614174003',
+  // })
+  // groupId: string;
 }
 
 // Digital Form Update DTO
@@ -366,6 +375,15 @@ export class DigitalFormEntryDTO {
   attendanceStatus?: AttendanceStatus;
 
   @ApiProperty({
+    description: 'ShiftType of the worker',
+    enum: ShiftType,
+    required: true,
+    example: ShiftType.REGULAR,
+    default: ShiftType.REGULAR,
+  })
+  shiftType: ShiftType;
+
+  @ApiProperty({
     description: 'Check-in time (ISO datetime)',
     required: false,
     example: '2023-04-15T07:25:00.000Z',
@@ -437,6 +455,11 @@ export const digitalFormEntryDTOSchema = z.object({
     .enum(['PRESENT', 'ABSENT', 'LATE', 'EARLY_LEAVE', 'LEAVE_APPROVED'])
     .transform((val) => AttendanceStatus[val as keyof typeof AttendanceStatus])
     .default('PRESENT'),
+
+  shiftType: z
+    .enum(['REGULAR', 'EXTENDED', 'OVERTIME'])
+    .transform((val) => ShiftType[val as keyof typeof ShiftType])
+    .default(ShiftType.REGULAR),
 
   checkInTime: z.string().optional(), // ISO datetime string
   checkOutTime: z.string().optional(), // ISO datetime string
@@ -557,10 +580,18 @@ export class UpdateFormEntryDTO {
 export const updateFormEntryDTOSchema = z.object({
   hourlyData: z.record(z.string(), z.number()).optional(),
   totalOutput: z.number().int().optional(),
+  // attendanceStatus: z
+  //   .enum(['PRESENT', 'ABSENT', 'LATE', 'EARLY_LEAVE', 'LEAVE_APPROVED'])
+  //   .optional(),
   attendanceStatus: z
     .enum(['PRESENT', 'ABSENT', 'LATE', 'EARLY_LEAVE', 'LEAVE_APPROVED'])
     .transform((val) => AttendanceStatus[val as keyof typeof AttendanceStatus])
-    .optional(),
+    .default('PRESENT'),
+
+  shiftType: z
+    .enum(['REGULAR', 'EXTENDED', 'OVERTIME'])
+    .transform((val) => ShiftType[val as keyof typeof ShiftType])
+    .default(ShiftType.REGULAR),
   checkInTime: z.string().optional(),
   checkOutTime: z.string().optional(),
   attendanceNote: z.string().optional(),
@@ -651,158 +682,3 @@ export class DigitalFormListResponseDTO {
   })
   limit: number;
 }
-
-// import { z } from 'zod';
-// import {
-//   ShiftType,
-//   AttendanceStatus,
-//   ProductionIssueType,
-// } from './digital-form.model';
-
-// // Base pagination DTO
-// export const paginationDTOSchema = z.object({
-//   page: z.number().int().positive().default(1),
-//   limit: z.number().int().positive().max(100).default(10),
-//   sortBy: z.string().optional().default('createdAt'),
-//   sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
-// });
-
-// export type PaginationDTO = z.infer<typeof paginationDTOSchema>;
-
-// // Digital Form Create DTO
-// export const digitalFormCreateDTOSchema = z.object({
-//   formName: z.string().optional(),
-//   description: z.string().optional(),
-//   date: z.string(), // ISO date string
-//   shiftType: z.nativeEnum(ShiftType),
-//   factoryId: z.string().uuid(),
-//   lineId: z.string().uuid(),
-//   teamId: z.string().uuid(),
-//   groupId: z.string().uuid(),
-// });
-
-// export type DigitalFormCreateDTO = z.infer<typeof digitalFormCreateDTOSchema>;
-
-// // Digital Form Update DTO
-// export const digitalFormUpdateDTOSchema = z.object({
-//   formName: z.string().optional(),
-//   description: z.string().optional(),
-// });
-
-// export type DigitalFormUpdateDTO = z.infer<typeof digitalFormUpdateDTOSchema>;
-
-// // Digital Form Submit DTO
-// export const digitalFormSubmitDTOSchema = z.object({
-//   approvalRequestId: z.string().uuid().optional(),
-// });
-
-// export type DigitalFormSubmitDTO = z.infer<typeof digitalFormSubmitDTOSchema>;
-
-// // Digital Form Condition DTO for filtering
-// export const digitalFormCondDTOSchema = z.object({
-//   factoryId: z.string().uuid().optional(),
-//   lineId: z.string().uuid().optional(),
-//   teamId: z.string().uuid().optional(),
-//   groupId: z.string().uuid().optional(),
-//   createdById: z.string().uuid().optional(),
-//   status: z.enum(['DRAFT', 'PENDING', 'CONFIRMED', 'REJECTED']).optional(),
-//   dateFrom: z.string().optional(), // ISO date string
-//   dateTo: z.string().optional(), // ISO date string
-//   shiftType: z.enum(['REGULAR', 'EXTENDED', 'OVERTIME']).optional(),
-//   search: z.string().optional(),
-// });
-
-// export type DigitalFormCondDTO = z.infer<typeof digitalFormCondDTOSchema>;
-
-// // Form Entry DTO
-// export const digitalFormEntryDTOSchema = z.object({
-//   userId: z.string().uuid(),
-//   handBagId: z.string().uuid(),
-//   bagColorId: z.string().uuid(),
-//   processId: z.string().uuid(),
-
-//   // Hourly data as a record of hour -> output
-//   hourlyData: z.record(z.string(), z.number()).default({}),
-
-//   // Total output calculated from hourly data
-//   totalOutput: z.number().int().default(0),
-
-//   // Attendance information
-//   attendanceStatus: z
-//     .enum(['PRESENT', 'ABSENT', 'LATE', 'EARLY_LEAVE', 'LEAVE_APPROVED'])
-//     .transform((val) => AttendanceStatus[val as keyof typeof AttendanceStatus])
-//     .default('PRESENT'),
-
-//   checkInTime: z.string().optional(), // ISO datetime string
-//   checkOutTime: z.string().optional(), // ISO datetime string
-//   attendanceNote: z.string().optional(),
-
-//   // Issues tracking
-//   issues: z
-//     .array(
-//       z.object({
-//         type: z
-//           .enum([
-//             'ABSENT',
-//             'LATE',
-//             'WAITING_MATERIALS',
-//             'QUALITY_ISSUES',
-//             'LOST_MATERIALS',
-//             'OTHER',
-//           ])
-//           .transform(
-//             (val) =>
-//               ProductionIssueType[val as keyof typeof ProductionIssueType],
-//           ),
-//         hour: z.number().int(),
-//         impact: z.number().int().min(0).max(100),
-//         description: z.string().optional(),
-//       }),
-//     )
-//     .optional(),
-
-//   // Quality information
-//   qualityScore: z.number().int().min(0).max(100).default(100),
-//   qualityNotes: z.string().optional(),
-// });
-
-// export type DigitalFormEntryDTO = z.infer<typeof digitalFormEntryDTOSchema>;
-
-// // Update Form Entry DTO
-// export const updateFormEntryDTOSchema = z.object({
-//   hourlyData: z.record(z.string(), z.number()).optional(),
-//   totalOutput: z.number().int().optional(),
-//   attendanceStatus: z
-//     .enum(['PRESENT', 'ABSENT', 'LATE', 'EARLY_LEAVE', 'LEAVE_APPROVED'])
-//     .transform((val) => AttendanceStatus[val as keyof typeof AttendanceStatus])
-//     .optional(),
-//   checkInTime: z.string().optional(),
-//   checkOutTime: z.string().optional(),
-//   attendanceNote: z.string().optional(),
-//   issues: z
-//     .array(
-//       z.object({
-//         type: z
-//           .enum([
-//             'ABSENT',
-//             'LATE',
-//             'WAITING_MATERIALS',
-//             'QUALITY_ISSUES',
-//             'LOST_MATERIALS',
-//             'OTHER',
-//           ])
-//           .transform(
-//             (val) =>
-//               ProductionIssueType[val as keyof typeof ProductionIssueType],
-//           ),
-//         hour: z.number().int(),
-//         impact: z.number().int().min(0).max(100),
-//         description: z.string().optional(),
-//       }),
-//     )
-//     .optional(),
-//   qualityScore: z.number().int().min(0).max(100).optional(),
-//   qualityNotes: z.string().optional(),
-// });
-
-// export type UpdateFormEntryDTO = z.infer<typeof updateFormEntryDTOSchema>;

@@ -345,11 +345,18 @@ export class AuthController {
       await this.authService.refreshToken(token);
 
     // Set new cookie
-    res.cookie('accessToken', newToken, {
+    // res.cookie('accessToken', newToken, {
+    //   httpOnly: true,
+    //   secure: process.env.NODE_ENV === 'production',
+    //   sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    //   maxAge: expiresIn * 1000, // Convert seconds to milliseconds
+    // });
+    res.cookie('accessToken', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      maxAge: expiresIn * 1000, // Convert seconds to milliseconds
+      secure: true, // Luôn true trên production
+      sameSite: 'none', // Quan trọng cho cross-domain
+      maxAge: expiresIn * 1000,
+      path: '/',
     });
 
     return {

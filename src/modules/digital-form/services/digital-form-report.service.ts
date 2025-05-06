@@ -2,6 +2,8 @@ import { Inject, Injectable } from '@nestjs/common';
 import { AppError } from 'src/share';
 import {
   AttendanceStatus,
+  DigitalForm,
+  DigitalFormEntry,
   FactoryProductionReport,
   GroupProductionReport,
   LineProductionReport,
@@ -201,11 +203,11 @@ export class DigitalFormReportService
       );
 
       // Initialize arrays with proper types
-      const outputByBag: OutputByBagItem[] = [];
-      const outputByProcess: OutputByProcessItem[] = [];
-      const hourlyBreakdown: HourlyBreakdownItem[] = [];
-      const dailyBreakdown: DailyBreakdownItem[] = [];
-      const productionIssues: ProductionIssueItem[] = [];
+      let outputByBag: OutputByBagItem[] = [];
+      let outputByProcess: OutputByProcessItem[] = [];
+      let hourlyBreakdown: HourlyBreakdownItem[] = [];
+      let dailyBreakdown: DailyBreakdownItem[] = [];
+      let productionIssues: ProductionIssueItem[] = [];
       let lineBreakdown: LineBreakdownItem[] = [];
 
       // Initialize attendance stats
@@ -253,7 +255,7 @@ export class DigitalFormReportService
         0,
       );
 
-      // Add missing calculations
+      // Calculate average quality
       const totalQualityPoints = entries.reduce(
         (sum, entry) => sum + (entry.qualityScore || 100),
         0,
@@ -261,33 +263,59 @@ export class DigitalFormReportService
       const averageQuality =
         totalEntries > 0 ? Math.round(totalQualityPoints / totalEntries) : 0;
 
-      // Calculate attendance stats
-      entries.forEach((entry) => {
-        switch (entry.attendanceStatus) {
-          case AttendanceStatus.PRESENT:
-            attendanceStats.present++;
-            break;
-          case AttendanceStatus.ABSENT:
-            attendanceStats.absent++;
-            break;
-          case AttendanceStatus.LATE:
-            attendanceStats.late++;
-            break;
-          case AttendanceStatus.EARLY_LEAVE:
-            attendanceStats.earlyLeave++;
-            break;
-          case AttendanceStatus.LEAVE_APPROVED:
-            attendanceStats.leaveApproved++;
-            break;
-        }
-      });
+      // 7. Calculate attendance stats
+      attendanceStats.present = entries.filter(
+        (entry) => entry.attendanceStatus === AttendanceStatus.PRESENT,
+      ).length;
+
+      attendanceStats.absent = entries.filter(
+        (entry) => entry.attendanceStatus === AttendanceStatus.ABSENT,
+      ).length;
+
+      attendanceStats.late = entries.filter(
+        (entry) => entry.attendanceStatus === AttendanceStatus.LATE,
+      ).length;
+
+      attendanceStats.earlyLeave = entries.filter(
+        (entry) => entry.attendanceStatus === AttendanceStatus.EARLY_LEAVE,
+      ).length;
+
+      attendanceStats.leaveApproved = entries.filter(
+        (entry) => entry.attendanceStatus === AttendanceStatus.LEAVE_APPROVED,
+      ).length;
 
       attendanceStats.percentPresent =
         totalEntries > 0
           ? Math.round((attendanceStats.present / totalEntries) * 100)
           : 0;
 
-      // 7. Process line breakdown if requested
+      // 8. Calculate hourly breakdown
+      hourlyBreakdown = this.calculateHourlyBreakdown(entries);
+
+      // 9. Calculate daily breakdown
+      dailyBreakdown = this.calculateDailyBreakdown(forms, entries);
+
+      // 10. Calculate output by bag if requested
+      if (reportOptions.groupByBag) {
+        outputByBag = await this.calculateOutputByBag(
+          entries,
+          this.digitalFormRepo,
+          totalOutput,
+        );
+      }
+
+      // 11. Calculate output by process if requested
+      if (reportOptions.groupByProcess) {
+        outputByProcess = await this.calculateOutputByProcess(
+          entries,
+          this.digitalFormRepo,
+        );
+      }
+
+      // 12. Calculate production issues
+      productionIssues = this.calculateProductionIssues(entries);
+
+      // 13. Process line breakdown if requested
       if (reportOptions.includeLines) {
         lineBreakdown = await Promise.all(
           factoryLines.map(async (line) => {
@@ -353,7 +381,7 @@ export class DigitalFormReportService
         lineBreakdown.sort((a, b) => b.totalOutput - a.totalOutput);
       }
 
-      // 8. Construct and return the final report
+      // 14. Construct and return the final report
       return {
         factoryId,
         factoryName: factoryInfo.name,
@@ -432,11 +460,11 @@ export class DigitalFormReportService
       );
 
       // Initialize arrays with proper types
-      const outputByBag: OutputByBagItem[] = [];
-      const outputByProcess: OutputByProcessItem[] = [];
-      const hourlyBreakdown: HourlyBreakdownItem[] = [];
-      const dailyBreakdown: DailyBreakdownItem[] = [];
-      const productionIssues: ProductionIssueItem[] = [];
+      let outputByBag: OutputByBagItem[] = [];
+      let outputByProcess: OutputByProcessItem[] = [];
+      let hourlyBreakdown: HourlyBreakdownItem[] = [];
+      let dailyBreakdown: DailyBreakdownItem[] = [];
+      let productionIssues: ProductionIssueItem[] = [];
       let teamBreakdown: TeamBreakdownItem[] = [];
 
       // Initialize attendance stats
@@ -495,33 +523,59 @@ export class DigitalFormReportService
       const averageQuality =
         totalEntries > 0 ? Math.round(totalQualityPoints / totalEntries) : 0;
 
-      // Calculate attendance stats
-      entries.forEach((entry) => {
-        switch (entry.attendanceStatus) {
-          case AttendanceStatus.PRESENT:
-            attendanceStats.present++;
-            break;
-          case AttendanceStatus.ABSENT:
-            attendanceStats.absent++;
-            break;
-          case AttendanceStatus.LATE:
-            attendanceStats.late++;
-            break;
-          case AttendanceStatus.EARLY_LEAVE:
-            attendanceStats.earlyLeave++;
-            break;
-          case AttendanceStatus.LEAVE_APPROVED:
-            attendanceStats.leaveApproved++;
-            break;
-        }
-      });
+      // 7. Calculate attendance stats
+      attendanceStats.present = entries.filter(
+        (entry) => entry.attendanceStatus === AttendanceStatus.PRESENT,
+      ).length;
+
+      attendanceStats.absent = entries.filter(
+        (entry) => entry.attendanceStatus === AttendanceStatus.ABSENT,
+      ).length;
+
+      attendanceStats.late = entries.filter(
+        (entry) => entry.attendanceStatus === AttendanceStatus.LATE,
+      ).length;
+
+      attendanceStats.earlyLeave = entries.filter(
+        (entry) => entry.attendanceStatus === AttendanceStatus.EARLY_LEAVE,
+      ).length;
+
+      attendanceStats.leaveApproved = entries.filter(
+        (entry) => entry.attendanceStatus === AttendanceStatus.LEAVE_APPROVED,
+      ).length;
 
       attendanceStats.percentPresent =
         totalEntries > 0
           ? Math.round((attendanceStats.present / totalEntries) * 100)
           : 0;
 
-      // 7. Process team breakdown if requested
+      // 8. Calculate hourly breakdown
+      hourlyBreakdown = this.calculateHourlyBreakdown(entries);
+
+      // 9. Calculate daily breakdown
+      dailyBreakdown = this.calculateDailyBreakdown(forms, entries);
+
+      // 10. Calculate output by bag if requested
+      if (reportOptions.groupByBag) {
+        outputByBag = await this.calculateOutputByBag(
+          entries,
+          this.digitalFormRepo,
+          totalOutput,
+        );
+      }
+
+      // 11. Calculate output by process if requested
+      if (reportOptions.groupByProcess) {
+        outputByProcess = await this.calculateOutputByProcess(
+          entries,
+          this.digitalFormRepo,
+        );
+      }
+
+      // 12. Calculate production issues
+      productionIssues = this.calculateProductionIssues(entries);
+
+      // 13. Process team breakdown if requested
       if (reportOptions.includeTeams) {
         // Get all teams in the line
         const lineTeams = await this.digitalFormRepo.getLineTeams(lineId);
@@ -592,7 +646,7 @@ export class DigitalFormReportService
         teamBreakdown.sort((a, b) => b.totalOutput - a.totalOutput);
       }
 
-      // 8. Construct and return the final report
+      // 14. Construct and return the final report
       return {
         lineId,
         lineName: lineInfo.name,
@@ -665,11 +719,11 @@ export class DigitalFormReportService
       );
 
       // Initialize arrays with proper types
-      const outputByBag: OutputByBagItem[] = [];
-      const outputByProcess: OutputByProcessItem[] = [];
-      const hourlyBreakdown: HourlyBreakdownItem[] = [];
-      const dailyBreakdown: DailyBreakdownItem[] = [];
-      const productionIssues: ProductionIssueItem[] = [];
+      let outputByBag: OutputByBagItem[] = [];
+      let outputByProcess: OutputByProcessItem[] = [];
+      let hourlyBreakdown: HourlyBreakdownItem[] = [];
+      let dailyBreakdown: DailyBreakdownItem[] = [];
+      let productionIssues: ProductionIssueItem[] = [];
       let groupBreakdown: GroupBreakdownItem[] = [];
 
       // Initialize attendance stats
@@ -690,7 +744,7 @@ export class DigitalFormReportService
           teamCode: teamInfo.code,
           lineId: teamInfo.lineId,
           lineName: teamInfo.lineName,
-          factoryId: '00000000-0000-0000-0000-000000000000',
+          factoryId: '00000000-0000-0000-0000-000000000000', // This should be fetched if possible
           factoryName: 'Unknown Factory',
           factoryCode: 'UNKNOWN',
           dateRange: { from: dateFrom, to: dateTo },
@@ -728,211 +782,57 @@ export class DigitalFormReportService
       const averageQuality =
         totalEntries > 0 ? Math.round(totalQualityPoints / totalEntries) : 0;
 
-      // 6. Group data for attendance stats
-      entries.forEach((entry) => {
-        switch (entry.attendanceStatus) {
-          case AttendanceStatus.PRESENT:
-            attendanceStats.present++;
-            break;
-          case AttendanceStatus.ABSENT:
-            attendanceStats.absent++;
-            break;
-          case AttendanceStatus.LATE:
-            attendanceStats.late++;
-            break;
-          case AttendanceStatus.EARLY_LEAVE:
-            attendanceStats.earlyLeave++;
-            break;
-          case AttendanceStatus.LEAVE_APPROVED:
-            attendanceStats.leaveApproved++;
-            break;
-        }
-      });
+      // 6. Calculate attendance stats
+      attendanceStats.present = entries.filter(
+        (entry) => entry.attendanceStatus === AttendanceStatus.PRESENT,
+      ).length;
+
+      attendanceStats.absent = entries.filter(
+        (entry) => entry.attendanceStatus === AttendanceStatus.ABSENT,
+      ).length;
+
+      attendanceStats.late = entries.filter(
+        (entry) => entry.attendanceStatus === AttendanceStatus.LATE,
+      ).length;
+
+      attendanceStats.earlyLeave = entries.filter(
+        (entry) => entry.attendanceStatus === AttendanceStatus.EARLY_LEAVE,
+      ).length;
+
+      attendanceStats.leaveApproved = entries.filter(
+        (entry) => entry.attendanceStatus === AttendanceStatus.LEAVE_APPROVED,
+      ).length;
 
       attendanceStats.percentPresent =
         totalEntries > 0
           ? Math.round((attendanceStats.present / totalEntries) * 100)
           : 0;
 
-      // 7. Process output by bag
+      // 7. Calculate hourly breakdown
+      hourlyBreakdown = this.calculateHourlyBreakdown(entries);
+
+      // 8. Calculate daily breakdown
+      dailyBreakdown = this.calculateDailyBreakdown(forms, entries);
+
+      // 9. Calculate output by bag if requested
       if (reportOptions.groupByBag) {
-        // Group entries by bag
-        const bagGroups: Record<string, typeof entries> = this._groupBy(
+        outputByBag = await this.calculateOutputByBag(
           entries,
-          'handBagId',
+          this.digitalFormRepo,
+          totalOutput,
         );
-
-        // Get bag details
-        const bagIds = Object.keys(bagGroups);
-        const bagDetails = await this.digitalFormRepo.getHandBagDetails(bagIds);
-
-        for (const bagId of bagIds) {
-          const bagEntries = bagGroups[bagId];
-          const bagOutput = bagEntries.reduce(
-            (sum, entry) => sum + entry.totalOutput,
-            0,
-          );
-          const bagDetail = bagDetails.find((b) => b.id === bagId) || {
-            code: 'Unknown',
-            name: 'Unknown',
-          };
-
-          outputByBag.push({
-            handBagId: bagId,
-            handBagCode: bagDetail.code,
-            handBagName: bagDetail.name,
-            totalOutput: bagOutput,
-            percentage:
-              totalOutput > 0 ? Math.round((bagOutput / totalOutput) * 100) : 0,
-          });
-        }
-
-        // Sort by total output
-        outputByBag.sort((a, b) => b.totalOutput - a.totalOutput);
       }
 
-      // 8. Process output by process
+      // 10. Calculate output by process if requested
       if (reportOptions.groupByProcess) {
-        // Group entries by process
-        const processGroups: Record<string, typeof entries> = this._groupBy(
+        outputByProcess = await this.calculateOutputByProcess(
           entries,
-          'processId',
+          this.digitalFormRepo,
         );
-
-        // Get process details
-        const processIds = Object.keys(processGroups);
-        const processDetails =
-          await this.digitalFormRepo.getBagProcessDetails(processIds);
-
-        for (const processId of processIds) {
-          const processEntries = processGroups[processId];
-          const processOutput = processEntries.reduce(
-            (sum, entry) => sum + entry.totalOutput,
-            0,
-          );
-          const processDetail = processDetails.find(
-            (p) => p.id === processId,
-          ) || { code: 'Unknown', name: 'Unknown' };
-
-          outputByProcess.push({
-            processId,
-            processCode: processDetail.code,
-            processName: processDetail.name,
-            totalOutput: processOutput,
-          });
-        }
-
-        // Sort by total output
-        outputByProcess.sort((a, b) => b.totalOutput - a.totalOutput);
       }
 
-      // 9. Process hourly breakdown
-      // First, determine all unique time intervals from entries
-      const allHourlyData: Record<string, number> = entries.reduce(
-        (all: Record<string, number>, entry) => {
-          const hourlyData = entry.hourlyData || {};
-          return { ...all, ...hourlyData };
-        },
-        {},
-      );
-
-      const timeIntervals = Object.keys(allHourlyData).sort();
-
-      for (const hour of timeIntervals) {
-        let totalForHour = 0;
-        let workersForHour = 0;
-
-        entries.forEach((entry) => {
-          const hourData = (entry.hourlyData || {}) as Record<string, number>;
-          if (hourData[hour] !== undefined) {
-            totalForHour += hourData[hour];
-            workersForHour++;
-          }
-        });
-
-        hourlyBreakdown.push({
-          hour,
-          totalOutput: totalForHour,
-          averageOutput:
-            workersForHour > 0 ? Math.round(totalForHour / workersForHour) : 0,
-        });
-      }
-
-      // 10. Process daily breakdown
-      // Group forms by date
-      const formsByDate = this._groupBy(
-        forms,
-        (form) => form.date.toISOString().split('T')[0],
-      );
-
-      for (const dateStr of Object.keys(formsByDate)) {
-        const dateForms = formsByDate[dateStr];
-        const dateFormIds = dateForms.map((form) => form.id);
-
-        // Find entries for these forms
-        const dateEntries = entries.filter((entry) =>
-          dateFormIds.includes(entry.formId),
-        );
-
-        const dateOutput = dateEntries.reduce(
-          (sum, entry) => sum + entry.totalOutput,
-          0,
-        );
-
-        const dateQualityPoints = dateEntries.reduce(
-          (sum, entry) => sum + (entry.qualityScore || 100),
-          0,
-        );
-
-        const dateQuality =
-          dateEntries.length > 0
-            ? Math.round(dateQualityPoints / dateEntries.length)
-            : 0;
-
-        const presentCount = dateEntries.filter(
-          (entry) => entry.attendanceStatus === AttendanceStatus.PRESENT,
-        ).length;
-
-        const attendanceRate =
-          dateEntries.length > 0
-            ? Math.round((presentCount / dateEntries.length) * 100)
-            : 0;
-
-        dailyBreakdown.push({
-          date: dateStr,
-          totalOutput: dateOutput,
-          averageQuality: dateQuality,
-          attendanceRate,
-        });
-      }
-
-      // Sort daily breakdown by date
-      dailyBreakdown.sort((a, b) => a.date.localeCompare(b.date));
-
-      // 11. Process production issues
-      const allIssues = entries.reduce((issues: ProductionIssue[], entry) => {
-        const entryIssues = entry.issues || [];
-        return [...issues, ...entryIssues];
-      }, []);
-
-      const issuesByType = this._groupBy(allIssues, 'type');
-
-      for (const issueType of Object.keys(issuesByType)) {
-        const issues = issuesByType[issueType];
-        const totalImpact = issues.reduce(
-          (sum, issue) => sum + (issue.impact || 0),
-          0,
-        );
-
-        productionIssues.push({
-          issueType: issueType as ProductionIssueType,
-          occurrences: issues.length,
-          totalImpact,
-        });
-      }
-
-      // Sort issues by occurrences
-      productionIssues.sort((a, b) => b.occurrences - a.occurrences);
+      // 11. Calculate production issues
+      productionIssues = this.calculateProductionIssues(entries);
 
       // 12. Process group breakdown if requested
       if (reportOptions.includeGroups) {
@@ -969,10 +869,10 @@ export class DigitalFormReportService
 
             // Calculate efficiency relative to team average
             const teamAvgPerWorker =
-              totalEntries > 0 ? totalOutput / uniqueWorkers.size : 0;
+              totalEntries > 0 ? totalOutput / totalEntries : 0;
 
             const groupAvgPerWorker =
-              uniqueWorkers.size > 0 ? groupOutput / uniqueWorkers.size : 0;
+              groupEntries.length > 0 ? groupOutput / groupEntries.length : 0;
 
             const efficiency =
               teamAvgPerWorker > 0
@@ -1002,7 +902,7 @@ export class DigitalFormReportService
         teamCode: teamInfo.code,
         lineId: teamInfo.lineId,
         lineName: teamInfo.lineName,
-        factoryId: '00000000-0000-0000-0000-000000000000',
+        factoryId: '00000000-0000-0000-0000-000000000000', // This should be fetched if possible
         factoryName: 'Unknown Factory',
         factoryCode: 'UNKNOWN',
         dateRange: { from: dateFrom, to: dateTo },
@@ -1039,8 +939,23 @@ export class DigitalFormReportService
     groupId: string,
     dateFrom: string,
     dateTo: string,
+    options: {
+      includeWorkers?: boolean;
+      detailedAttendance?: boolean;
+      groupByBag?: boolean;
+      groupByProcess?: boolean;
+    } = {},
   ): Promise<GroupProductionReport> {
     try {
+      // Default options
+      const reportOptions = {
+        includeWorkers: true,
+        detailedAttendance: false,
+        groupByBag: true,
+        groupByProcess: true,
+        ...options,
+      };
+
       // 1. Get group information
       const groupInfo = await this.digitalFormRepo.getGroupInfo(groupId);
       if (!groupInfo) {
@@ -1055,12 +970,12 @@ export class DigitalFormReportService
       );
 
       // Initialize arrays with proper types
-      const outputByBag: OutputByBagItem[] = [];
-      const outputByProcess: OutputByProcessItem[] = [];
-      const hourlyBreakdown: HourlyBreakdownItem[] = [];
-      const dailyBreakdown: DailyBreakdownItem[] = [];
-      const productionIssues: ProductionIssueItem[] = [];
-      const workerBreakdown: WorkerBreakdownItem[] = [];
+      let outputByBag: OutputByBagItem[] = [];
+      let outputByProcess: OutputByProcessItem[] = [];
+      let hourlyBreakdown: HourlyBreakdownItem[] = [];
+      let dailyBreakdown: DailyBreakdownItem[] = [];
+      let productionIssues: ProductionIssueItem[] = [];
+      let workerBreakdown: WorkerBreakdownItem[] = [];
 
       // Initialize attendance stats
       const attendanceStats: AttendanceStatsItem = {
@@ -1082,9 +997,9 @@ export class DigitalFormReportService
           teamName: groupInfo.teamName,
           lineId: groupInfo.lineId,
           lineName: groupInfo.lineName,
-          factoryId: '00000000-0000-0000-0000-000000000000',
-          factoryName: 'Unknown Factory',
-          factoryCode: 'UNKNOWN',
+          factoryId: groupInfo.factoryId,
+          factoryName: groupInfo.factoryName,
+          factoryCode: 'UNKNOWN', // This should be fetched if possible
           dateRange: { from: dateFrom, to: dateTo },
           totalForms: 0,
           totalEntries: 0,
@@ -1100,10 +1015,165 @@ export class DigitalFormReportService
         };
       }
 
-      // Implementation details for group report...
-      // (Similar structure to team report but focuses on workers instead of groups)
+      // 3. Extract all form IDs
+      const formIds = forms.map((form) => form.id);
 
-      // Return a simplified response for brevity in this example
+      // 4. Get all entries for these forms
+      const entries =
+        await this.digitalFormRepo.getFormEntriesByFormIds(formIds);
+
+      // 5. Calculate base statistics
+      const totalEntries = entries.length;
+      const totalOutput = entries.reduce(
+        (sum, entry) => sum + entry.totalOutput,
+        0,
+      );
+      const totalQualityPoints = entries.reduce(
+        (sum, entry) => sum + (entry.qualityScore || 100),
+        0,
+      );
+      const averageQuality =
+        totalEntries > 0 ? Math.round(totalQualityPoints / totalEntries) : 0;
+
+      // 6. Calculate attendance stats
+      attendanceStats.present = entries.filter(
+        (entry) => entry.attendanceStatus === AttendanceStatus.PRESENT,
+      ).length;
+
+      attendanceStats.absent = entries.filter(
+        (entry) => entry.attendanceStatus === AttendanceStatus.ABSENT,
+      ).length;
+
+      attendanceStats.late = entries.filter(
+        (entry) => entry.attendanceStatus === AttendanceStatus.LATE,
+      ).length;
+
+      attendanceStats.earlyLeave = entries.filter(
+        (entry) => entry.attendanceStatus === AttendanceStatus.EARLY_LEAVE,
+      ).length;
+
+      attendanceStats.leaveApproved = entries.filter(
+        (entry) => entry.attendanceStatus === AttendanceStatus.LEAVE_APPROVED,
+      ).length;
+
+      attendanceStats.percentPresent =
+        totalEntries > 0
+          ? Math.round((attendanceStats.present / totalEntries) * 100)
+          : 0;
+
+      // 7. Calculate hourly breakdown
+      hourlyBreakdown = this.calculateHourlyBreakdown(entries);
+
+      // 8. Calculate daily breakdown
+      dailyBreakdown = this.calculateDailyBreakdown(forms, entries);
+
+      // 9. Calculate output by bag if requested
+      if (reportOptions.groupByBag) {
+        outputByBag = await this.calculateOutputByBag(
+          entries,
+          this.digitalFormRepo,
+          totalOutput,
+        );
+      }
+
+      // 10. Calculate output by process if requested
+      if (reportOptions.groupByProcess) {
+        outputByProcess = await this.calculateOutputByProcess(
+          entries,
+          this.digitalFormRepo,
+        );
+      }
+
+      // 11. Calculate production issues
+      productionIssues = this.calculateProductionIssues(entries);
+
+      // 12. Process worker breakdown if requested
+      if (reportOptions.includeWorkers) {
+        // Get all workers in the group
+        const groupWorkers =
+          await this.digitalFormRepo.getGroupWorkers(groupId);
+
+        // Collect all form dates for attendance calculation
+        const formDates = new Set(
+          forms.map((form) => form.date.toISOString().split('T')[0]),
+        );
+
+        // Calculate group average output per day for efficiency comparison
+        const groupAvgOutputPerDay =
+          totalEntries > 0 && groupWorkers.length > 0
+            ? totalOutput / (totalEntries / groupWorkers.length)
+            : 0;
+
+        workerBreakdown = await Promise.all(
+          groupWorkers.map(async (worker) => {
+            // Get entries for this worker
+            const workerEntries = await this.digitalFormRepo.getWorkerEntries(
+              worker.id,
+              formIds,
+            );
+
+            const workerOutput = workerEntries.reduce(
+              (sum, entry) => sum + entry.totalOutput,
+              0,
+            );
+
+            const workerQualityPoints = workerEntries.reduce(
+              (sum, entry) => sum + (entry.qualityScore || 100),
+              0,
+            );
+
+            const workerQuality =
+              workerEntries.length > 0
+                ? Math.round(workerQualityPoints / workerEntries.length)
+                : 0;
+
+            // Calculate attendance rate for this worker
+            const workerDays = new Set(
+              workerEntries
+                .map((entry) => {
+                  const form = forms.find((f) => f.id === entry.formId);
+                  return form ? form.date.toISOString().split('T')[0] : null;
+                })
+                .filter(Boolean),
+            ).size;
+
+            const workerPresentDays = workerEntries.filter(
+              (entry) => entry.attendanceStatus === AttendanceStatus.PRESENT,
+            ).length;
+
+            const attendanceRate =
+              formDates.size > 0
+                ? Math.round((workerDays / formDates.size) * 100)
+                : 0;
+
+            // Calculate efficiency relative to group average
+            const workerAvgPerDay =
+              workerEntries.length > 0
+                ? workerOutput / workerEntries.length
+                : 0;
+
+            const efficiency =
+              groupAvgOutputPerDay > 0
+                ? Math.round((workerAvgPerDay / groupAvgOutputPerDay) * 100)
+                : 0;
+
+            return {
+              userId: worker.id,
+              employeeId: worker.employeeId,
+              fullName: worker.fullName,
+              totalOutput: workerOutput,
+              averageQuality: workerQuality,
+              attendanceRate,
+              efficiency,
+            };
+          }),
+        );
+
+        // Sort by total output
+        workerBreakdown.sort((a, b) => b.totalOutput - a.totalOutput);
+      }
+
+      // 13. Construct and return the final report
       return {
         groupId,
         groupName: groupInfo.name,
@@ -1112,14 +1182,14 @@ export class DigitalFormReportService
         teamName: groupInfo.teamName,
         lineId: groupInfo.lineId,
         lineName: groupInfo.lineName,
-        factoryId: '00000000-0000-0000-0000-000000000000',
-        factoryName: 'Unknown Factory',
-        factoryCode: 'UNKNOWN',
+        factoryId: groupInfo.factoryId,
+        factoryName: groupInfo.factoryName,
+        factoryCode: 'UNKNOWN', // This should be improved if possible
         dateRange: { from: dateFrom, to: dateTo },
         totalForms: forms.length,
-        totalEntries: 0, // Calculate properly in actual implementation
-        totalOutput: 0, // Calculate properly in actual implementation
-        averageQuality: 0, // Calculate properly in actual implementation
+        totalEntries,
+        totalOutput,
+        averageQuality,
         outputByBag,
         outputByProcess,
         attendanceStats,
@@ -1151,29 +1221,246 @@ export class DigitalFormReportService
     compareBy: 'team' | 'group',
     dateFrom: string,
     dateTo: string,
+    options: {
+      includeHandBags?: boolean;
+      includeProcesses?: boolean;
+      includeTimeSeries?: boolean;
+    } = {},
   ): Promise<ProductionComparisonReport> {
     try {
+      // Default options
+      const reportOptions = {
+        includeHandBags: true,
+        includeProcesses: true,
+        includeTimeSeries: true,
+        ...options,
+      };
+
       // 1. Get line information
       const lineInfo = await this.digitalFormRepo.getLineInfo(lineId);
       if (!lineInfo) {
         throw AppError.from(new Error(`Line not found: ${lineId}`), 404);
       }
 
-      // Initialize arrays with proper types
+      // 2. Get factory information
+      const factoryInfo = await this.digitalFormRepo.getLineFactory(lineId);
+      if (!factoryInfo) {
+        throw AppError.from(
+          new Error(`Factory not found for line: ${lineId}`),
+          404,
+        );
+      }
+
+      // 3. Validate entity IDs
+      if (entityIds.length === 0) {
+        throw AppError.from(
+          new Error(`At least one ${compareBy} ID is required`),
+          400,
+        );
+      }
+
+      // 4. Get all entity information
+      let entities: Array<{ id: string; name: string; code: string }> = [];
+
+      if (compareBy === 'team') {
+        // Get teams information
+        const lineTeams = await this.digitalFormRepo.getLineTeams(lineId);
+        entities = entityIds
+          .map((id) => lineTeams.find((team) => team.id === id))
+          .filter(Boolean) as any[];
+      } else if (compareBy === 'group') {
+        // Get groups information
+        const lineGroups = await this.digitalFormRepo.getLineGroups(lineId);
+        entities = entityIds
+          .map((id) => lineGroups.find((group) => group.id === id))
+          .filter(
+            (
+              group,
+            ): group is {
+              id: string;
+              name: string;
+              code: string;
+              teamId: string;
+              teamName: string;
+            } => group !== undefined,
+          )
+          .map((group) => ({
+            id: group.id,
+            name: group.name,
+            code: group.code,
+          }));
+      }
+
+      if (entities.length === 0) {
+        throw AppError.from(
+          new Error(`No valid ${compareBy}s found for the provided IDs`),
+          404,
+        );
+      }
+
+      // 5. Initialize result arrays
       const comparisonData: ComparisonDataItem[] = [];
-      const comparisonByBag: ComparisonByBagItem[] = [];
-      const comparisonByProcess: ComparisonByProcessItem[] = [];
-      const timeSeriesData: TimeSeriesDataItem[] = [];
+      let comparisonByBag: ComparisonByBagItem[] = [];
+      let comparisonByProcess: ComparisonByProcessItem[] = [];
+      let timeSeriesData: TimeSeriesDataItem[] = [];
 
-      // Implementation details for comparison report...
-      // (This would involve fetching and comparing data from multiple teams or groups)
+      // 6. Fetch data for each entity and calculate metrics
+      const entityMetrics = await Promise.all(
+        entities.map(async (entity) => {
+          let forms: DigitalForm[] = [];
 
-      // Return a simplified response for brevity in this example
+          if (compareBy === 'team') {
+            forms = await this.digitalFormRepo.getTeamForms(
+              entity.id,
+              new Date(dateFrom),
+              new Date(dateTo),
+            );
+          } else {
+            forms = await this.digitalFormRepo.getGroupForms(
+              entity.id,
+              new Date(dateFrom),
+              new Date(dateTo),
+            );
+          }
+
+          const formIds = forms.map((form) => form.id);
+          let entries: DigitalFormEntry[] = [];
+
+          if (compareBy === 'team') {
+            entries =
+              await this.digitalFormRepo.getFormEntriesByFormIds(formIds);
+          } else {
+            entries = await this.digitalFormRepo.getGroupEntries(
+              entity.id,
+              formIds,
+            );
+          }
+
+          // Calculate metrics
+          const totalOutput = entries.reduce(
+            (sum, entry) => sum + entry.totalOutput,
+            0,
+          );
+
+          const uniqueWorkers = new Set(entries.map((entry) => entry.userId));
+          const workerCount = uniqueWorkers.size;
+
+          const outputPerWorker =
+            workerCount > 0 ? totalOutput / workerCount : 0;
+
+          const qualityPoints = entries.reduce(
+            (sum, entry) => sum + (entry.qualityScore || 100),
+            0,
+          );
+
+          const qualityScore =
+            entries.length > 0 ? Math.round(qualityPoints / entries.length) : 0;
+
+          const presentCount = entries.filter(
+            (entry) => entry.attendanceStatus === AttendanceStatus.PRESENT,
+          ).length;
+
+          const attendanceRate =
+            entries.length > 0
+              ? Math.round((presentCount / entries.length) * 100)
+              : 0;
+
+          // Calculate issue rate
+          const allIssues = entries.reduce(
+            (issues: ProductionIssue[], entry) => {
+              if (entry.issues && Array.isArray(entry.issues)) {
+                return [...issues, ...entry.issues];
+              }
+              return issues;
+            },
+            [],
+          );
+
+          const totalImpact = allIssues.reduce(
+            (sum, issue) => sum + (issue.impact || 0),
+            0,
+          );
+
+          const issueRate =
+            entries.length > 0 ? Math.round(totalImpact / entries.length) : 0;
+
+          // Store handbag data for later use
+          const bagGroups: Record<string, DigitalFormEntry[]> = this._groupBy(
+            entries,
+            'handBagId',
+          );
+
+          // Store process data for later use
+          const processGroups: Record<string, DigitalFormEntry[]> =
+            this._groupBy(entries, 'processId');
+
+          // Store data by date for time series
+          const formsByDate = this._groupBy(
+            forms,
+            (form) => form.date.toISOString().split('T')[0],
+          );
+
+          return {
+            entity,
+            totalOutput,
+            outputPerWorker,
+            qualityScore,
+            attendanceRate,
+            issueRate,
+            bagGroups,
+            processGroups,
+            formsByDate,
+            entries,
+          };
+        }),
+      );
+
+      // 7. Sort entities by total output and assign ranks
+      entityMetrics.sort((a, b) => b.totalOutput - a.totalOutput);
+
+      // 8. Fill comparison data with ranks assigned
+      entityMetrics.forEach((metric, index) => {
+        comparisonData.push({
+          id: metric.entity.id,
+          name: metric.entity.name,
+          code: metric.entity.code,
+          totalOutput: metric.totalOutput,
+          outputPerWorker: Math.round(metric.outputPerWorker * 100) / 100,
+          qualityScore: metric.qualityScore,
+          attendanceRate: metric.attendanceRate,
+          issueRate: metric.issueRate,
+          rank: index + 1,
+        });
+      });
+
+      // 9. Calculate comparison by bag if requested
+      if (reportOptions.includeHandBags) {
+        comparisonByBag = await this.calculateHandBagComparison(
+          entityMetrics,
+          this.digitalFormRepo,
+        );
+      }
+
+      // 10. Calculate comparison by process if requested
+      if (reportOptions.includeProcesses) {
+        // Calculate in separate function similar to bag comparison
+        comparisonByProcess = await this.calculateProcessComparison(
+          entityMetrics,
+          this.digitalFormRepo,
+        );
+      }
+
+      // 11. Calculate time series data if requested
+      if (reportOptions.includeTimeSeries) {
+        timeSeriesData = this.calculateTimeSeriesComparison(entityMetrics);
+      }
+
+      // 12. Return the final report
       return {
         dateRange: { from: dateFrom, to: dateTo },
-        factoryId: '00000000-0000-0000-0000-000000000000',
-        factoryName: 'Unknown Factory',
-        factoryCode: 'UNKNOWN',
+        factoryId: factoryInfo.id,
+        factoryName: factoryInfo.name,
+        factoryCode: factoryInfo.code,
         lineId,
         lineName: lineInfo.name,
         lineCode: lineInfo.code,
@@ -1198,5 +1485,487 @@ export class DigitalFormReportService
         500,
       );
     }
+  }
+
+  /**
+   * Tính toán thống kê sản lượng theo giờ
+   * Hiển thị sản lượng trung bình và tổng theo từng giờ làm việc
+   */
+  private calculateHourlyBreakdown(
+    entries: DigitalFormEntry[],
+  ): HourlyBreakdownItem[] {
+    // Thu thập tất cả dữ liệu theo giờ
+    const hourlyDataMap: Record<string, { total: number; count: number }> = {};
+
+    entries.forEach((entry) => {
+      const hourlyData = entry.hourlyData || {};
+
+      Object.entries(hourlyData).forEach(([hour, output]) => {
+        if (!hourlyDataMap[hour]) {
+          hourlyDataMap[hour] = { total: 0, count: 0 };
+        }
+
+        hourlyDataMap[hour].total += output;
+        hourlyDataMap[hour].count += 1;
+      });
+    });
+
+    // Chuyển đổi sang mảng các mục phân tích theo giờ
+    const result: HourlyBreakdownItem[] = Object.entries(hourlyDataMap)
+      .map(([hour, data]) => ({
+        hour,
+        totalOutput: data.total,
+        averageOutput: data.count > 0 ? Math.round(data.total / data.count) : 0,
+      }))
+      .sort((a, b) => a.hour.localeCompare(b.hour));
+
+    return result;
+  }
+
+  /**
+   * Tính toán thống kê sản lượng theo ngày
+   * Hiển thị xu hướng sản lượng, chất lượng và điểm danh theo thời gian
+   */
+  private calculateDailyBreakdown(
+    forms: DigitalForm[],
+    entries: DigitalFormEntry[],
+  ): DailyBreakdownItem[] {
+    // Nhóm form theo ngày
+    const formsByDate: Record<string, DigitalForm[]> = {};
+
+    forms.forEach((form) => {
+      const dateStr = form.date.toISOString().split('T')[0]; // YYYY-MM-DD
+      if (!formsByDate[dateStr]) {
+        formsByDate[dateStr] = [];
+      }
+      formsByDate[dateStr].push(form);
+    });
+
+    // Tính toán thống kê cho mỗi ngày
+    const result: DailyBreakdownItem[] = [];
+
+    for (const dateStr of Object.keys(formsByDate).sort()) {
+      const dateForms = formsByDate[dateStr];
+      const dateFormIds = dateForms.map((form) => form.id);
+
+      // Tìm các entries cho ngày này
+      const dateEntries = entries.filter((entry) =>
+        dateFormIds.includes(entry.formId),
+      );
+
+      if (dateEntries.length === 0) {
+        continue; // Bỏ qua các ngày không có dữ liệu
+      }
+
+      // Tính toán sản lượng, chất lượng và tỷ lệ điểm danh
+      const dateOutput = dateEntries.reduce(
+        (sum, entry) => sum + entry.totalOutput,
+        0,
+      );
+
+      const qualityPoints = dateEntries.reduce(
+        (sum, entry) => sum + (entry.qualityScore || 100),
+        0,
+      );
+
+      const averageQuality =
+        dateEntries.length > 0
+          ? Math.round(qualityPoints / dateEntries.length)
+          : 0;
+
+      const presentCount = dateEntries.filter(
+        (entry) => entry.attendanceStatus === AttendanceStatus.PRESENT,
+      ).length;
+
+      const attendanceRate =
+        dateEntries.length > 0
+          ? Math.round((presentCount / dateEntries.length) * 100)
+          : 0;
+
+      result.push({
+        date: dateStr,
+        totalOutput: dateOutput,
+        averageQuality,
+        attendanceRate,
+      });
+    }
+
+    return result;
+  }
+
+  /**
+   * Tính toán phân bố sản lượng theo loại túi
+   * Hiển thị phân bố sản lượng theo sản phẩm, hoàn hảo cho biểu đồ tròn
+   */
+  private async calculateOutputByBag(
+    entries: DigitalFormEntry[],
+    repository: IDigitalFormRepository,
+    totalOutput: number,
+  ): Promise<OutputByBagItem[]> {
+    // Nhóm entries theo túi
+    const bagGroups: Record<string, DigitalFormEntry[]> = this._groupBy(
+      entries,
+      'handBagId',
+    );
+
+    // Lấy thông tin chi tiết túi từ repository
+    const bagIds = Object.keys(bagGroups);
+    if (bagIds.length === 0) {
+      return [];
+    }
+
+    const bagDetails = await repository.getHandBagDetails(bagIds);
+
+    // Tính toán sản lượng cho từng loại túi
+    const result: OutputByBagItem[] = [];
+
+    for (const bagId of bagIds) {
+      const bagEntries = bagGroups[bagId];
+      const bagOutput = bagEntries.reduce(
+        (sum, entry) => sum + entry.totalOutput,
+        0,
+      );
+
+      const bagDetail = bagDetails.find((b) => b.id === bagId) || {
+        id: bagId,
+        code: 'Unknown',
+        name: 'Unknown',
+      };
+
+      const percentage =
+        totalOutput > 0 ? Math.round((bagOutput / totalOutput) * 100) : 0;
+
+      result.push({
+        handBagId: bagId,
+        handBagCode: bagDetail.code,
+        handBagName: bagDetail.name,
+        totalOutput: bagOutput,
+        percentage,
+      });
+    }
+
+    // Sắp xếp theo sản lượng giảm dần
+    result.sort((a, b) => b.totalOutput - a.totalOutput);
+
+    return result;
+  }
+
+  /**
+   * Tính toán phân bố sản lượng theo quy trình sản xuất
+   * Hiển thị sản lượng theo công đoạn, hoàn hảo cho biểu đồ cột
+   */
+  private async calculateOutputByProcess(
+    entries: DigitalFormEntry[],
+    repository: IDigitalFormRepository,
+  ): Promise<OutputByProcessItem[]> {
+    // Nhóm entries theo quy trình
+    const processGroups: Record<string, DigitalFormEntry[]> = this._groupBy(
+      entries,
+      'processId',
+    );
+
+    // Lấy thông tin chi tiết quy trình từ repository
+    const processIds = Object.keys(processGroups);
+    if (processIds.length === 0) {
+      return [];
+    }
+
+    const processDetails = await repository.getBagProcessDetails(processIds);
+
+    // Tính toán sản lượng cho từng quy trình
+    const result: OutputByProcessItem[] = [];
+
+    for (const processId of processIds) {
+      const processEntries = processGroups[processId];
+      const processOutput = processEntries.reduce(
+        (sum, entry) => sum + entry.totalOutput,
+        0,
+      );
+
+      const processDetail = processDetails.find((p) => p.id === processId) || {
+        id: processId,
+        code: 'Unknown',
+        name: 'Unknown',
+      };
+
+      result.push({
+        processId,
+        processCode: processDetail.code,
+        processName: processDetail.name,
+        totalOutput: processOutput,
+      });
+    }
+
+    // Sắp xếp theo sản lượng giảm dần
+    result.sort((a, b) => b.totalOutput - a.totalOutput);
+
+    return result;
+  }
+
+  /**
+   * Tính toán thống kê các vấn đề sản xuất
+   * Hoàn hảo cho biểu đồ cột/Pareto hiển thị tác động của các vấn đề sản xuất
+   */
+  private calculateProductionIssues(
+    entries: DigitalFormEntry[],
+  ): ProductionIssueItem[] {
+    // Trích xuất tất cả các vấn đề từ entries
+    const allIssues: ProductionIssue[] = [];
+
+    entries.forEach((entry) => {
+      if (
+        entry.issues &&
+        Array.isArray(entry.issues) &&
+        entry.issues.length > 0
+      ) {
+        allIssues.push(...entry.issues);
+      }
+    });
+
+    // Nhóm các vấn đề theo loại
+    const issueGroups: Record<string, ProductionIssue[]> = this._groupBy(
+      allIssues,
+      'type',
+    );
+
+    // Tính toán thống kê cho từng loại vấn đề
+    const result: ProductionIssueItem[] = [];
+
+    for (const issueType of Object.keys(issueGroups)) {
+      const issues = issueGroups[issueType];
+      const totalImpact = issues.reduce(
+        (sum, issue) => sum + (issue.impact || 0),
+        0,
+      );
+
+      result.push({
+        issueType: issueType as unknown as ProductionIssueType,
+        occurrences: issues.length,
+        totalImpact,
+      });
+    }
+
+    // Sắp xếp theo số lần xuất hiện giảm dần
+    result.sort((a, b) => b.occurrences - a.occurrences);
+
+    return result;
+  }
+
+  /**
+   * Tính toán dữ liệu chuỗi thời gian cho so sánh các đơn vị
+   * Hoàn hảo cho biểu đồ đường nhiều dòng so sánh đội/nhóm theo thời gian
+   */
+  private calculateTimeSeriesComparison(
+    entityMetrics: Array<{
+      entity: { id: string; name: string };
+      formsByDate: Record<string, DigitalForm[]>;
+      entries: DigitalFormEntry[];
+    }>,
+  ): TimeSeriesDataItem[] {
+    // Lấy tất cả các ngày duy nhất trên tất cả các đơn vị
+    const allDates = new Set<string>();
+
+    entityMetrics.forEach((metric) => {
+      Object.keys(metric.formsByDate).forEach((date) => {
+        allDates.add(date);
+      });
+    });
+
+    // Tạo dữ liệu chuỗi thời gian cho từng ngày
+    const result: TimeSeriesDataItem[] = [];
+
+    for (const date of Array.from(allDates).sort()) {
+      const dataPoints = entityMetrics.map((metric) => {
+        const dateForms = metric.formsByDate[date] || [];
+        const dateFormIds = dateForms.map((form) => form.id);
+
+        // Tìm các entries cho ngày này
+        const dateEntries = metric.entries.filter((entry) =>
+          dateFormIds.includes(entry.formId),
+        );
+
+        const output = dateEntries.reduce(
+          (sum, entry) => sum + entry.totalOutput,
+          0,
+        );
+
+        return {
+          id: metric.entity.id,
+          name: metric.entity.name,
+          output,
+        };
+      });
+
+      result.push({
+        date,
+        dataPoints,
+      });
+    }
+
+    return result;
+  }
+
+  /**
+   * Tính toán dữ liệu so sánh cho túi xách giữa nhiều đơn vị
+   * Hoàn hảo cho biểu đồ cột nhóm so sánh sản lượng sản phẩm giữa các đội
+   */
+  private async calculateHandBagComparison(
+    entityMetrics: Array<{
+      entity: { id: string; name: string };
+      totalOutput: number;
+      bagGroups: Record<string, DigitalFormEntry[]>;
+    }>,
+    repository: IDigitalFormRepository,
+  ): Promise<ComparisonByBagItem[]> {
+    // Lấy tất cả ID túi duy nhất trên tất cả các đơn vị
+    const allBagIds = new Set<string>();
+
+    entityMetrics.forEach((metric) => {
+      Object.keys(metric.bagGroups).forEach((bagId) => {
+        allBagIds.add(bagId);
+      });
+    });
+
+    if (allBagIds.size === 0) {
+      return [];
+    }
+
+    // Lấy thông tin chi tiết túi
+    const bagDetails = await repository.getHandBagDetails(
+      Array.from(allBagIds),
+    );
+
+    // Tạo so sánh cho từng túi
+    const result: ComparisonByBagItem[] = [];
+
+    for (const bagId of allBagIds) {
+      const bagDetail = bagDetails.find((b) => b.id === bagId) || {
+        id: bagId,
+        code: 'Unknown',
+        name: 'Unknown',
+      };
+
+      const dataPoints = entityMetrics.map((metric) => {
+        const bagEntries = metric.bagGroups[bagId] || [];
+        const output = bagEntries.reduce(
+          (sum, entry) => sum + entry.totalOutput,
+          0,
+        );
+
+        // Tính hiệu suất (phần trăm tổng sản lượng của đơn vị)
+        const efficiency =
+          metric.totalOutput > 0
+            ? Math.round((output / metric.totalOutput) * 100)
+            : 0;
+
+        return {
+          id: metric.entity.id,
+          name: metric.entity.name,
+          output,
+          efficiency,
+        };
+      });
+
+      // Chỉ bao gồm các túi có sản lượng trong ít nhất một đơn vị
+      if (dataPoints.some((point) => point.output > 0)) {
+        result.push({
+          handBagId: bagId,
+          handBagCode: bagDetail.code,
+          handBagName: bagDetail.name,
+          dataPoints,
+        });
+      }
+    }
+
+    // Sắp xếp theo tổng sản lượng cao nhất trên tất cả các đơn vị
+    result.sort((a, b) => {
+      const totalA = a.dataPoints.reduce((sum, p) => sum + p.output, 0);
+      const totalB = b.dataPoints.reduce((sum, p) => sum + p.output, 0);
+      return totalB - totalA;
+    });
+
+    return result;
+  }
+
+  /**
+   * Tính toán dữ liệu so sánh cho quy trình sản xuất giữa nhiều đơn vị
+   * Hoàn hảo cho biểu đồ cột nhóm so sánh hiệu suất quy trình giữa các đội/nhóm
+   */
+  private async calculateProcessComparison(
+    entityMetrics: Array<{
+      entity: { id: string; name: string };
+      totalOutput: number;
+      processGroups: Record<string, DigitalFormEntry[]>;
+    }>,
+    repository: IDigitalFormRepository,
+  ): Promise<ComparisonByProcessItem[]> {
+    // Lấy tất cả ID quy trình duy nhất trên tất cả các đơn vị
+    const allProcessIds = new Set<string>();
+
+    entityMetrics.forEach((metric) => {
+      Object.keys(metric.processGroups).forEach((processId) => {
+        allProcessIds.add(processId);
+      });
+    });
+
+    if (allProcessIds.size === 0) {
+      return [];
+    }
+
+    // Lấy thông tin chi tiết quy trình
+    const processDetails = await repository.getBagProcessDetails(
+      Array.from(allProcessIds),
+    );
+
+    // Tạo so sánh cho từng quy trình
+    const result: ComparisonByProcessItem[] = [];
+
+    for (const processId of allProcessIds) {
+      const processDetail = processDetails.find((p) => p.id === processId) || {
+        id: processId,
+        code: 'Unknown',
+        name: 'Unknown',
+      };
+
+      const dataPoints = entityMetrics.map((metric) => {
+        const processEntries = metric.processGroups[processId] || [];
+        const output = processEntries.reduce(
+          (sum, entry) => sum + entry.totalOutput,
+          0,
+        );
+
+        // Tính hiệu suất (phần trăm tổng sản lượng của đơn vị)
+        const efficiency =
+          metric.totalOutput > 0
+            ? Math.round((output / metric.totalOutput) * 100)
+            : 0;
+
+        return {
+          id: metric.entity.id,
+          name: metric.entity.name,
+          output,
+          efficiency,
+        };
+      });
+
+      // Chỉ bao gồm các quy trình có sản lượng trong ít nhất một đơn vị
+      if (dataPoints.some((point) => point.output > 0)) {
+        result.push({
+          processId,
+          processCode: processDetail.code,
+          processName: processDetail.name,
+          dataPoints,
+        });
+      }
+    }
+
+    // Sắp xếp theo tổng sản lượng cao nhất trên tất cả các đơn vị
+    result.sort((a, b) => {
+      const totalA = a.dataPoints.reduce((sum, p) => sum + p.output, 0);
+      const totalB = b.dataPoints.reduce((sum, p) => sum + p.output, 0);
+      return totalB - totalA;
+    });
+
+    return result;
   }
 }

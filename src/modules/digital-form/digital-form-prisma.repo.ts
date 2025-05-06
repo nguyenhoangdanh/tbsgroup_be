@@ -1331,6 +1331,8 @@ export class DigitalFormPrismaRepository implements IDigitalFormRepository {
     teamName: string;
     lineId: string;
     lineName: string;
+    factoryId: string;
+    factoryName: string;
   }> {
     try {
       const group = await prisma.group.findUnique({
@@ -1339,9 +1341,13 @@ export class DigitalFormPrismaRepository implements IDigitalFormRepository {
           team: {
             include: {
               line: {
-                select: {
-                  id: true,
-                  name: true,
+                include: {
+                  factory: {
+                    select: {
+                      id: true,
+                      name: true,
+                    },
+                  },
                 },
               },
             },
@@ -1361,6 +1367,8 @@ export class DigitalFormPrismaRepository implements IDigitalFormRepository {
         teamName: group.team.name,
         lineId: group.team.lineId,
         lineName: group.team.line.name,
+        factoryId: group.team.line.factoryId,
+        factoryName: group.team.line.factory.name,
       };
     } catch (error) {
       this.logger.error(

@@ -91,6 +91,8 @@ export interface IDigitalFormRepository {
     teamName: string;
     lineId: string;
     lineName: string;
+    factoryId: string;
+    factoryName: string;
   }>;
   getGroupForms(
     groupId: string,

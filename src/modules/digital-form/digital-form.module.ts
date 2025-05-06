@@ -71,8 +71,8 @@ import { USER_REPOSITORY } from '../user/user.di-token';
 
     {
       provide: USER_REPOSITORY,
-      useClass: UserPrismaRepository
-    }
+      useClass: UserPrismaRepository,
+    },
   ],
   exports: [
     DIGITAL_FORM_REPOSITORY,

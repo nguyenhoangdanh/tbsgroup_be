@@ -1243,24 +1243,24 @@ export class DigitalFormReportsController {
     @Param('groupId') groupId: string,
     @Query('dateFrom') dateFrom: string,
     @Query('dateTo') dateTo: string,
-    @Query('includeWorkers') includeWorkers: string,
-    @Query('detailedAttendance') detailedAttendance: string,
-    @Query('groupByBag') groupByBag: string,
-    @Query('groupByProcess') groupByProcess: string,
+    // @Query('includeWorkers') includeWorkers?: string,
+    // @Query('detailedAttendance') detailedAttendance?: string,
+    // @Query('groupByBag') groupByBag?: string,
+    // @Query('groupByProcess') groupByProcess?: string,
   ) {
     try {
-      const options = {
-        includeWorkers: includeWorkers === 'true',
-        detailedAttendance: detailedAttendance === 'true',
-        groupByBag: groupByBag === 'true',
-        groupByProcess: groupByProcess === 'true',
-      };
+      // const options = {
+      //   includeWorkers: includeWorkers === 'true',
+      //   detailedAttendance: detailedAttendance === 'true',
+      //   groupByBag: groupByBag === 'true',
+      //   groupByProcess: groupByProcess === 'true',
+      // };
 
       const report = await this.digitalFormService.getProductionReportByGroup(
         groupId,
         dateFrom,
         dateTo,
-        options,
+        // options,
       );
 
       return { success: true, data: report };

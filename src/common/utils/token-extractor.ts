@@ -2,11 +2,6 @@ export function extractTokenFromRequest(req: any): string | null {
   // Log để debug
   // console.log('Headers:', req.headers);
   // console.log('Cookies:', req.cookies);
-
-  console.log('Headers:', req.headers);
-  console.log('Cookies:', req.cookies);
-  console.log('Query:', req.query);
-
   // Thứ tự ưu tiên: Authorization header > Cookie > Query param
 
   // Kiểm tra Authorization header (thường được dùng bởi Swagger UI)

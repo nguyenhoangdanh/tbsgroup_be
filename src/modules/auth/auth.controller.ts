@@ -216,12 +216,21 @@ export class AuthController {
     const { token, expiresIn, requiredResetPassword } =
       await this.authService.login(dto);
 
+    console.log('Environment: ', process.env.NODE_ENV);
+
     // Set HTTP-only cookie with the token
+    // res.cookie('accessToken', token, {
+    //   httpOnly: true,
+    //   secure: process.env.NODE_ENV === 'production',
+    //   sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    //   maxAge: expiresIn * 1000, // Convert seconds to milliseconds
+    // });
     res.cookie('accessToken', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      maxAge: expiresIn * 1000, // Convert seconds to milliseconds
+      secure: true, // Luôn true trên production
+      sameSite: 'none', // Quan trọng cho cross-domain
+      maxAge: expiresIn * 1000,
+      path: '/',
     });
 
     // Also send token in response for mobile/SPA clients

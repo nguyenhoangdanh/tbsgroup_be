@@ -35,6 +35,9 @@ async function bootstrap() {
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
   });
 
+  // Đảm bảo ứng dụng trust proxy
+  app.set('trust proxy', 1);
+
   // Đặt prefix cho tất cả API
   app.setGlobalPrefix('api/v1');
 

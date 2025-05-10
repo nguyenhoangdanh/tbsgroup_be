@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import { bagColorProcessSchema, bagColorSchema, handBagSchema } from './handbag.model';
+import {
+  bagColorProcessSchema,
+  bagColorSchema,
+  handBagSchema,
+} from './handbag.model';
 
 // DTO cho túi xách
 export const handBagCreateDTOSchema = handBagSchema
@@ -136,7 +140,9 @@ export const bagColorProcessCreateDTOSchema = bagColorProcessSchema
     standardOutput: true,
   });
 
-export type BagColorProcessCreateDTO = z.infer<typeof bagColorProcessCreateDTOSchema>;
+export type BagColorProcessCreateDTO = z.infer<
+  typeof bagColorProcessCreateDTOSchema
+>;
 
 export const bagColorProcessUpdateDTOSchema = bagColorProcessSchema
   .pick({
@@ -149,7 +155,9 @@ export const bagColorProcessUpdateDTOSchema = bagColorProcessSchema
   })
   .partial();
 
-export type BagColorProcessUpdateDTO = z.infer<typeof bagColorProcessUpdateDTOSchema>;
+export type BagColorProcessUpdateDTO = z.infer<
+  typeof bagColorProcessUpdateDTOSchema
+>;
 
 export const bagColorProcessCondDTOSchema = bagColorProcessSchema
   .pick({
@@ -158,7 +166,9 @@ export const bagColorProcessCondDTOSchema = bagColorProcessSchema
   })
   .partial();
 
-export type BagColorProcessCondDTO = z.infer<typeof bagColorProcessCondDTOSchema>;
+export type BagColorProcessCondDTO = z.infer<
+  typeof bagColorProcessCondDTOSchema
+>;
 
 // DTO cho phân trang và sắp xếp
 export const paginationDTOSchema = z.object({

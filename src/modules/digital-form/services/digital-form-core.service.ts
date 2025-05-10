@@ -158,6 +158,7 @@ export class DigitalFormCoreService
         lineId: user.lineId,
         teamId: user.teamId,
         groupId: user.groupId,
+        userId: user.id,
         status: RecordStatus.DRAFT,
         createdById: requester.sub,
         createdAt: new Date(),
@@ -201,7 +202,7 @@ export class DigitalFormCoreService
     requester: Requester,
   ): Promise<string> {
     try {
-      // Lấy thông tin công nhân
+      // Fetch worker info with all related data
       const worker = await prisma.user.findUnique({
         where: { id: workerId },
         include: {
@@ -212,14 +213,8 @@ export class DigitalFormCoreService
         },
       });
 
-      const date = new Date();
-      const isoString = date.toISOString();
-
       if (!worker) {
-        throw AppError.from(
-          new Error(`Không tìm thấy công nhân: ${workerId}`),
-          404,
-        );
+        throw AppError.from(new Error(`Worker not found: ${workerId}`), 404);
       }
 
       if (
@@ -230,27 +225,29 @@ export class DigitalFormCoreService
       ) {
         throw AppError.from(
           new Error(
-            `Không tìm thấy các mối quan hệ phụ thuộc của công nhân: ${workerId}`,
+            `Worker ${worker.fullName} does not have complete organizational information`,
           ),
-          404,
+          400,
         );
       }
 
-      // Tạo form code
+      const date = new Date();
+
+      // Form name including worker name, employee ID, and date
+      const formName = `Phiếu công đoạn - ${worker.fullName} - ${worker.employeeId} - ${date.toLocaleDateString('vi-VN')}`;
+      const description = `Theo dõi sản lượng ${worker.fullName}`;
+
+      // Generate form code
       const formCode = await this.generateFormCode(
         worker.factoryId,
         worker.lineId,
         worker.teamId,
         worker.groupId,
-        isoString,
+        date.toISOString(),
         ShiftType.REGULAR,
       );
 
-      // Tạo form name và description
-      const formName = `Phiếu công đoạn - ${worker.fullName}`;
-      const description = `Theo dõi sản lượng ${worker.fullName}`;
-
-      // Tạo digital form mới
+      // Create digital form
       const newId = uuidv4();
       const newForm: DigitalForm = {
         id: newId,
@@ -259,10 +256,11 @@ export class DigitalFormCoreService
         description,
         date: new Date(),
         shiftType: ShiftType.REGULAR,
-        factoryId: worker.factoryId || '',
-        lineId: worker.lineId || '',
-        teamId: worker.teamId || '',
-        groupId: worker.groupId || '',
+        factoryId: worker.factoryId,
+        lineId: worker.lineId,
+        teamId: worker.teamId,
+        groupId: worker.groupId,
+        userId: worker.id,
         status: RecordStatus.DRAFT,
         createdById: requester.sub,
         createdAt: new Date(),
@@ -277,7 +275,7 @@ export class DigitalFormCoreService
 
       await this.digitalFormRepo.insertDigitalForm(newForm);
       this.logger.log(
-        `Đã tạo digital form cho công nhân ${worker.fullName}: ${formCode} (${newId})`,
+        `Created digital form for worker ${worker.fullName}: ${formCode} (${newId})`,
       );
 
       return newId;
@@ -286,11 +284,9 @@ export class DigitalFormCoreService
         `Error creating digital form for worker: ${error.message}`,
         error.stack,
       );
-
       if (error instanceof AppError) {
         throw error;
       }
-
       throw AppError.from(
         new Error(`Error creating digital form for worker: ${error.message}`),
         400,

@@ -190,6 +190,7 @@ export class DigitalFormPrismaRepository implements IDigitalFormRepository {
       lineId: data.lineId,
       teamId: data.teamId,
       groupId: data.groupId,
+      userId: data.userId,
       status: this._mapRecordStatus(data.status),
       createdById: data.createdById,
       createdAt: new Date(data.createdAt),
@@ -258,6 +259,7 @@ export class DigitalFormPrismaRepository implements IDigitalFormRepository {
       handBagId: data.handBagId,
       bagColorId: data.bagColorId,
       processId: data.processId,
+      plannedOutput: data.plannedOutput || 0,
       hourlyData,
       totalOutput: data.totalOutput,
       attendanceStatus: this._mapAttendanceStatus(data.attendanceStatus),
@@ -451,6 +453,7 @@ export class DigitalFormPrismaRepository implements IDigitalFormRepository {
           lineId: form.lineId,
           teamId: form.teamId,
           groupId: form.groupId,
+          userId: form.userId,
           status: this._mapToDbRecordStatus(form.status),
           createdById: form.createdById,
           updatedById: form.updatedById,
@@ -674,6 +677,7 @@ export class DigitalFormPrismaRepository implements IDigitalFormRepository {
           handBagId: entry.handBagId,
           bagColorId: entry.bagColorId,
           processId: entry.processId,
+          plannedOutput: entry.plannedOutput || 0,
           hourlyData: hourlyData,
           totalOutput: entry.totalOutput,
           attendanceStatus: this._mapToDbAttendanceStatus(
@@ -806,36 +810,43 @@ export class DigitalFormPrismaRepository implements IDigitalFormRepository {
     try {
       // First, get the current entry to access existing hourlyData
       const currentEntry = await prisma.productionFormEntry.findUnique({
-        where: { id }
+        where: { id },
       });
-  
+
       if (!currentEntry) {
         throw new Error(`Form entry not found: ${id}`);
       }
-  
+
       // Map the ShiftType enum to Prisma ShiftType
       const dbShiftType = this._mapToDbShiftType(shiftType);
-  
+
       // Get existing hourly data - ensure it's a valid object or default to empty object
-      const existingHourlyData = (currentEntry.hourlyData as Record<string, number>) || {};
-      
+      const existingHourlyData =
+        (currentEntry.hourlyData as Record<string, number>) || {};
+
       // Create a copy to update - we'll rebuild this based on the new shift type
       const updatedHourlyData: Record<string, number> = {};
-      
+
       // Regular shift time slots (standard for all shift types)
       const regularTimeSlots = [
-        '07:30-08:30', '08:30-09:30', '09:30-10:30', '10:30-11:30', 
-        '12:30-13:30', '13:30-14:30', '14:30-15:30', '15:30-16:30'
+        '07:30-08:30',
+        '08:30-09:30',
+        '09:30-10:30',
+        '10:30-11:30',
+        '12:30-13:30',
+        '13:30-14:30',
+        '14:30-15:30',
+        '15:30-16:30',
       ];
-      
+
       // Extended shift adds these time slots
-      const extendedTimeSlots = ['16:30-17:30', '17:30-18:00'];
-      
+      const extendedTimeSlots = ['16:30-17:00', '17:00-18:00'];
+
       // Overtime shift adds these time slots
       const overtimeTimeSlots = ['18:00-19:00', '19:00-20:00'];
-      
+
       // First, copy all regular time slots that exist in the current hourlyData
-      regularTimeSlots.forEach(timeSlot => {
+      regularTimeSlots.forEach((timeSlot) => {
         if (timeSlot in existingHourlyData) {
           updatedHourlyData[timeSlot] = existingHourlyData[timeSlot];
         } else {
@@ -843,27 +854,28 @@ export class DigitalFormPrismaRepository implements IDigitalFormRepository {
           updatedHourlyData[timeSlot] = 0;
         }
       });
-      
+
       // If extended or overtime shift, add extended time slots
-      if (shiftType === ShiftType.EXTENDED || shiftType === ShiftType.OVERTIME) {
-        extendedTimeSlots.forEach(timeSlot => {
+      if (
+        shiftType === ShiftType.EXTENDED ||
+        shiftType === ShiftType.OVERTIME
+      ) {
+        extendedTimeSlots.forEach((timeSlot) => {
           // If the time slot already exists, keep its value, otherwise set to 0
-          updatedHourlyData[timeSlot] = timeSlot in existingHourlyData 
-            ? existingHourlyData[timeSlot] 
-            : 0;
+          updatedHourlyData[timeSlot] =
+            timeSlot in existingHourlyData ? existingHourlyData[timeSlot] : 0;
         });
       }
-      
+
       // If overtime shift, add overtime time slots
       if (shiftType === ShiftType.OVERTIME) {
-        overtimeTimeSlots.forEach(timeSlot => {
+        overtimeTimeSlots.forEach((timeSlot) => {
           // If the time slot already exists, keep its value, otherwise set to 0
-          updatedHourlyData[timeSlot] = timeSlot in existingHourlyData 
-            ? existingHourlyData[timeSlot] 
-            : 0;
+          updatedHourlyData[timeSlot] =
+            timeSlot in existingHourlyData ? existingHourlyData[timeSlot] : 0;
         });
       }
-      
+
       // Update the entry with the new shift type and hourly data
       await prisma.productionFormEntry.update({
         where: { id },
@@ -873,8 +885,10 @@ export class DigitalFormPrismaRepository implements IDigitalFormRepository {
           updatedAt: new Date(),
         },
       });
-  
-      this.logger.log(`Updated entry ${id} shift type to ${shiftType} with adjusted hourly data`);
+
+      this.logger.log(
+        `Updated entry ${id} shift type to ${shiftType} with adjusted hourly data`,
+      );
     } catch (error) {
       this.logger.error(
         `Error updating entry shift type for ${id}: ${error.message}`,

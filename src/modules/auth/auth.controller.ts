@@ -219,8 +219,6 @@ export class AuthController {
     const { token, expiresIn, requiredResetPassword } =
       await this.authService.login(dto);
 
-    console.log('Environment: ', process.env.NODE_ENV);
-
     // Set HTTP-only cookie with the token
     // res.cookie('accessToken', token, {
     //   httpOnly: true,

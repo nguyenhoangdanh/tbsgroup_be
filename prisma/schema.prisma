@@ -846,6 +846,7 @@ model ProductionFormEntry {
   processId  String @map("process_id") @db.Uuid // Công đoạn
 
   // Thông tin sản lượng theo giờ (JSON để lưu trữ linh hoạt)
+  plannedOutput Int @default(0) @map("planed_output")
   hourlyData  Json @default("{}") @map("hourly_data") // Format: {"hour1": 10, "hour2": 15, ...}
   totalOutput Int  @default(0) @map("total_output") // Tổng sản lượng
 
@@ -975,6 +976,7 @@ model DigitalProductionForm {
   lineId      String       @map("line_id") @db.Uuid // Liên kết với line
   teamId      String       @map("team_id") @db.Uuid
   groupId     String       @map("group_id") @db.Uuid
+  userId      String       @map("user_id")  @db.Uuid
   status      RecordStatus @default(DRAFT) @map("status") // Trạng thái form
 
   // User actions

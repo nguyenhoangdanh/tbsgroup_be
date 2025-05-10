@@ -64,6 +64,7 @@ export const digitalFormSchema = z.object({
   status: z.nativeEnum(RecordStatus).default(RecordStatus.DRAFT),
   teamId: z.string().uuid(),
   groupId: z.string().uuid(),
+  userId: z.string().uuid(),
 
   // User and timestamp fields
   createdById: z.string().uuid(),
@@ -95,6 +96,7 @@ export const digitalFormEntrySchema = z.object({
   // Production data
   hourlyData: z.record(z.string(), z.number()).default({}),
   totalOutput: z.number().int().default(0),
+  plannedOutput: z.number().int().default(0),
 
   // Attendance data
   attendanceStatus: z
@@ -166,8 +168,8 @@ export const STANDARD_TIME_INTERVALS: TimeInterval[] = [
   { start: '13:30', end: '14:30', label: '13:30-14:30' },
   { start: '14:30', end: '15:30', label: '14:30-15:30' },
   { start: '15:30', end: '16:30', label: '15:30-16:30' },
-  { start: '16:30', end: '17:30', label: '16:30-17:30' },
-  { start: '17:30', end: '18:00', label: '17:30-18:00' },
+  { start: '16:30', end: '17:00', label: '16:30-17:00' },
+  { start: '17:00', end: '18:00', label: '17:00-18:00' },
   { start: '18:00', end: '19:00', label: '18:00-19:00' },
   { start: '19:00', end: '20:00', label: '19:00-20:00' },
 ];

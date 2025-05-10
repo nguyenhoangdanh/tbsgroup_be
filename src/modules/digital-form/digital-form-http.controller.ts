@@ -25,6 +25,7 @@ import {
 import {
   digitalFormCondDTOSchema,
   digitalFormCreateDTOSchema,
+  DigitalFormEntryDTO,
   digitalFormEntryDTOSchema,
   digitalFormSubmitDTOSchema,
   digitalFormUpdateDTOSchema,
@@ -101,9 +102,9 @@ const DigitalFormSubmitDTO = createDtoFromZodSchema(
   },
 );
 
-const DigitalFormEntryDTO = createDtoFromZodSchema(
+const DigitalFormEntry = createDtoFromZodSchema(
   digitalFormEntryDTOSchema,
-  'DigitalFormEntryDTO',
+  'DigitalFormEntry',
   {
     examples: {
       userId: '123e4567-e89b-12d3-a456-426614174011',
@@ -224,7 +225,15 @@ export class DigitalFormHttpController {
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Tạo thủ công digital forms hàng ngày' })
-  async generateDailyForms() {
+  async generateDailyForms(
+    @Request() req: ReqWithRequester,
+    @Body()
+    dto: {
+      handBagId: string;
+      bagProcessId: string;
+      bagColorId: string;
+    },
+  ) {
     try {
       // Gọi service để tạo form
       await this.schedulerService.runDailyFormCreationManually();
@@ -571,7 +580,7 @@ export class DigitalFormHttpController {
     type: 'string',
     format: 'uuid',
   })
-  @ApiBody({ type: DigitalFormEntryDTO })
+  @ApiBody({ type: DigitalFormEntry })
   @ApiCreatedResponse({
     description: 'The entry has been successfully created',
     schema: {
@@ -608,6 +617,120 @@ export class DigitalFormHttpController {
       success: true,
       data: { id: entryId },
     };
+  }
+
+  @Post(':formId/bulk-entries')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.LINE_MANAGER, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Add multiple entries to a form at once (for shift start)',
+  })
+  @ApiParam({
+    name: 'formId',
+    description: 'Digital form ID',
+    type: 'string',
+    format: 'uuid',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        entries: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              handBagId: { type: 'string', format: 'uuid' },
+              bagColorId: { type: 'string', format: 'uuid' },
+              processId: { type: 'string', format: 'uuid' },
+              plannedOutput: { type: 'number', default: 0 },
+            },
+            required: ['handBagId', 'bagColorId', 'processId', 'plannedOutput'],
+          },
+        },
+      },
+      required: ['entries'],
+    },
+  })
+  async addBulkEntries(
+    @Request() req: ReqWithRequester,
+    @Param('formId') formId: string,
+    @Body()
+    data: {
+      entries: Array<{
+        handBagId: string;
+        bagColorId: string;
+        processId: string;
+        plannedOutput: number;
+      }>;
+    },
+  ) {
+    try {
+      const form = await this.coreService.getDigitalForm(formId);
+
+      if (!form) {
+        throw AppError.from(
+          new Error(`Digital form not found: ${formId}`),
+          404,
+        );
+      }
+
+      const results = [];
+
+      // Process each entry
+      for (const entry of data.entries) {
+        // Create entry DTO
+        const entryDto: DigitalFormEntryDTO = {
+          userId: form.userId,
+          handBagId: entry.handBagId,
+          bagColorId: entry.bagColorId,
+          processId: entry.processId,
+          plannedOutput: entry.plannedOutput || 0,
+          hourlyData: {},
+          totalOutput: 0,
+          attendanceStatus: AttendanceStatus.PRESENT,
+          shiftType: form.shiftType,
+        };
+
+        // Add entry to form
+        const entryId = await this.formEntryService.addFormEntry(
+          req.requester,
+          formId,
+          entryDto,
+        );
+
+        results.push({
+          id: entryId,
+          handBagId: entry.handBagId,
+          bagColorId: entry.bagColorId,
+          processId: entry.processId,
+          plannedOutput: entry.plannedOutput,
+        });
+      }
+
+      return {
+        success: true,
+        data: {
+          formId,
+          entries: results,
+        },
+      };
+    } catch (error) {
+      this.logger.error(
+        `Error adding bulk entries: ${error.message}`,
+        error.stack,
+      );
+
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw AppError.from(
+        new Error(`Error adding bulk entries: ${error.message}`),
+        400,
+      );
+    }
   }
 
   @Patch(':formId/entries/:entryId')

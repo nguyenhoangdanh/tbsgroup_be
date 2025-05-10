@@ -4,6 +4,8 @@ import {
   ShiftType,
   AttendanceStatus,
   ProductionIssueType,
+  ProductionIssue,
+  RecordStatus,
 } from './digital-form.model';
 
 // Helper function to add Swagger ApiProperty to class properties
@@ -76,7 +78,7 @@ export const digitalFormCreateDTOSchema = z.object({
 
 export class DigitalFormCreateDTO {
   @ApiProperty({
-    description: 'User ID',
+    description: 'ID of the worker',
     format: 'uuid',
     required: true,
     example: '123e4567-e89b-12d3-a456-426614174000',
@@ -345,6 +347,15 @@ export class DigitalFormEntryDTO {
   processId: string;
 
   @ApiProperty({
+    description: 'Planned output for this entry',
+    type: Number,
+    required: true,
+    example: 50,
+    default: 0,
+  })
+  plannedOutput: number = 0;
+
+  @ApiProperty({
     description: 'Hourly production data (hour -> output count)',
     required: false,
     example: {
@@ -446,7 +457,7 @@ export const digitalFormEntryDTOSchema = z.object({
 
   // Hourly data as a record of hour -> output
   hourlyData: z.record(z.string(), z.number()).default({}),
-
+  plannedOutput: z.number().int().default(0),
   // Total output calculated from hourly data
   totalOutput: z.number().int().default(0),
 
@@ -681,4 +692,52 @@ export class DigitalFormListResponseDTO {
     example: 10,
   })
   limit: number;
+}
+
+// Trong digital-form.model.ts, cập nhật DigitalForm interface
+export interface DigitalForm {
+  id: string;
+  formCode: string;
+  formName: string;
+  description: string | null;
+  date: Date;
+  shiftType: ShiftType;
+  factoryId: string;
+  lineId: string;
+  teamId: string;
+  groupId: string;
+  userId: string; // Thêm trường này
+  status: RecordStatus;
+  createdById: string;
+  createdAt: Date;
+  updatedById: string | null;
+  updatedAt: Date;
+  submitTime: Date | null;
+  approvalRequestId: string | null;
+  approvedAt: Date | null;
+  isExported: boolean;
+  syncStatus: string | null;
+}
+
+// Cập nhật DigitalFormEntry interface
+export interface DigitalFormEntry {
+  id: string;
+  formId: string;
+  userId: string;
+  handBagId: string;
+  bagColorId: string;
+  processId: string;
+  plannedOutput: number; // Thêm trường này
+  hourlyData: Record<string, number>;
+  totalOutput: number;
+  attendanceStatus: AttendanceStatus;
+  shiftType: ShiftType;
+  checkInTime: Date | null;
+  checkOutTime: Date | null;
+  attendanceNote: string | null;
+  issues?: ProductionIssue[];
+  qualityScore: number;
+  qualityNotes: string | null;
+  createdAt: Date;
+  updatedAt: Date;
 }

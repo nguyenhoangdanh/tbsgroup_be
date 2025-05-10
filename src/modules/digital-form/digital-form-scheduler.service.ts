@@ -27,47 +27,149 @@ export class DigitalFormSchedulerService {
    * Cron job chạy lúc 1 giờ sáng hàng ngày
    * Tạo digital form cho mỗi group trong hệ thống
    */
-  @Cron('0 1 * * *') // Chạy lúc 1 giờ sáng hàng ngày
+  @Cron('0 1 * * *') // Run at 1 AM daily
   async createDailyDigitalForms() {
     try {
-      this.logger.log('Bắt đầu tạo digital forms hàng ngày');
+      this.logger.log('Starting daily digital form creation');
 
-      // Kiểm tra xem hôm nay có phải là ngày nghỉ không
+      // Check if today is a holiday or weekend
       if (await this.isHolidayOrWeekend()) {
-        this.logger.log('Hôm nay là ngày nghỉ, không tạo digital forms');
+        this.logger.log(
+          'Today is a holiday or weekend, skipping form creation',
+        );
         return;
       }
 
-      // Lấy danh sách tất cả các groups
-      const groups = await prisma.group.findMany({
-        include: {
-          team: {
-            include: {
-              line: {
-                include: {
-                  factory: true,
-                },
-              },
-            },
-          },
+      // Tìm một admin/super-admin trong hệ thống để làm người tạo form
+      const adminUser = await prisma.user.findFirst({
+        where: {
+          OR: [{ role: { code: 'ADMIN' } }, { role: { code: 'SUPER_ADMIN' } }],
         },
       });
 
-      this.logger.log(`Tìm thấy ${groups.length} groups để tạo digital forms`);
+      if (!adminUser) {
+        this.logger.error('Không tìm thấy admin user để tạo form');
+        return;
+      }
 
-      // Lấy ngày hiện tại
+      const adminId = adminUser.id;
+      this.logger.log(
+        `Using admin user ${adminUser.fullName} (${adminId}) to create forms`,
+      );
+
+      // Get all active workers
+      const workers = await prisma.user.findMany({
+        where: {
+          status: 'ACTIVE',
+          groupId: { not: null },
+        },
+        include: {
+          group: true,
+          team: true,
+          line: true,
+          factory: true,
+        },
+      });
+
+      this.logger.log(
+        `Found ${workers.length} workers to create digital forms for`,
+      );
+
+      // Get current date
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      // Tạo digital form cho mỗi group
-      for (const group of groups) {
-        await this.createDigitalFormAndEntriesForGroup(group, today);
+      // Create a digital form for each worker
+      for (const worker of workers) {
+        try {
+          // Check if worker has all required organizational info
+          if (
+            !worker.factoryId ||
+            !worker.lineId ||
+            !worker.teamId ||
+            !worker.groupId
+          ) {
+            this.logger.warn(
+              `Worker ${worker.fullName} missing organizational info, skipping`,
+            );
+            continue;
+          }
+
+          // Check if a form already exists for this worker today
+          const existingForm = await prisma.digitalProductionForm.findFirst({
+            where: {
+              userId: worker.id,
+              date: {
+                equals: today,
+              },
+              shiftType: ShiftType.REGULAR,
+            },
+          });
+
+          if (existingForm) {
+            this.logger.debug(
+              `Form already exists for worker ${worker.fullName} today, skipping`,
+            );
+            continue;
+          }
+
+          // Generate form code
+          const formCode = await this.generateFormCode(
+            worker.factoryId,
+            worker.lineId,
+            worker.teamId,
+            worker.groupId,
+            today,
+            ShiftType.REGULAR,
+          );
+
+          // Create form name and description with worker details
+          const formName = `Phiếu công đoạn - ${worker.fullName} - ${worker.employeeId || ''} - ${today.toLocaleDateString('vi-VN')}`;
+          const description = `Theo dõi sản lượng ${worker.fullName}`;
+
+          // Create digital form
+          const formId = uuidv4();
+          const newForm: DigitalForm = {
+            id: formId,
+            formCode,
+            formName,
+            description,
+            date: today,
+            shiftType: ShiftType.REGULAR,
+            factoryId: worker.factoryId,
+            lineId: worker.lineId,
+            teamId: worker.teamId,
+            groupId: worker.groupId,
+            userId: worker.id,
+            status: RecordStatus.DRAFT,
+            createdById: adminId, // Sử dụng ID của admin đã tìm được
+            createdAt: new Date(),
+            updatedById: adminId, // Sử dụng ID của admin đã tìm được
+            updatedAt: new Date(),
+            submitTime: null,
+            approvalRequestId: null,
+            approvedAt: null,
+            isExported: false,
+            syncStatus: null,
+          };
+
+          await this.digitalFormRepo.insertDigitalForm(newForm);
+          this.logger.log(
+            `Created digital form for worker ${worker.fullName}: ${formCode} (${formId})`,
+          );
+        } catch (error) {
+          this.logger.error(
+            `Error creating form for worker ${worker.fullName}: ${error.message}`,
+            error.stack,
+          );
+          // Continue with next worker even if one fails
+        }
       }
 
-      this.logger.log('Hoàn thành tạo digital forms hàng ngày');
+      this.logger.log('Completed daily digital form creation');
     } catch (error) {
       this.logger.error(
-        `Lỗi khi tạo digital forms hàng ngày: ${error.message}`,
+        `Error in daily digital form creation: ${error.message}`,
         error.stack,
       );
     }
@@ -120,6 +222,7 @@ export class DigitalFormSchedulerService {
     } catch (error) {
       this.logger.warn(
         'Không thể truy vấn bảng Holiday, sử dụng danh sách ngày lễ cố định',
+        error,
       );
     }
 
@@ -129,94 +232,12 @@ export class DigitalFormSchedulerService {
   /**
    * Tạo digital form và entries cho một group cụ thể
    */
+  // Trong phương thức createDigitalFormAndEntriesForGroup
   private async createDigitalFormAndEntriesForGroup(
     group: any,
     date: Date,
   ): Promise<void> {
     try {
-      // Kiểm tra xem đã có form nào cho group này trong ngày hôm nay chưa
-      const existingForm = await prisma.digitalProductionForm.findFirst({
-        where: {
-          groupId: group.id,
-          date: {
-            equals: date,
-          },
-          shiftType: ShiftType.REGULAR,
-        },
-      });
-
-      // Tạo formId mới hoặc sử dụng formId đã tồn tại
-      let formId: string;
-
-      // Nếu form đã tồn tại
-      if (existingForm) {
-        this.logger.log(
-          `Đã tồn tại form cho group ${group.code} - ${group.name} trong ngày hôm nay`,
-        );
-        formId = existingForm.id;
-
-        // Kiểm tra xem đã có entries cho form này chưa
-        const existingEntries = await prisma.productionFormEntry.count({
-          where: {
-            formId: existingForm.id,
-          },
-        });
-
-        // Nếu đã có entries, không cần tạo thêm
-        if (existingEntries > 0) {
-          this.logger.log(
-            `Form ${existingForm.formCode} đã có ${existingEntries} entries, không cần tạo thêm`,
-          );
-          return;
-        }
-      } else {
-        // Tạo form mới nếu chưa tồn tại
-        // Tạo form code
-        const formCode = await this.generateFormCode(
-          group.team.line.factory.id,
-          group.team.line.id,
-          group.team.id,
-          group.id,
-          date,
-          ShiftType.REGULAR,
-        );
-
-        // Tạo form name và description
-        const formName = `Phiếu công đoạn - ${group.name}`;
-        const description = `Phiếu công đoạn theo dõi sản lượng nhóm ${group.name} ngày ${date.toLocaleDateString('vi-VN')}`;
-
-        // Tạo digital form mới
-        formId = uuidv4();
-        const newForm: DigitalForm = {
-          id: formId,
-          formCode,
-          formName,
-          description,
-          date,
-          shiftType: ShiftType.REGULAR,
-          factoryId: group.team.line.factory.id,
-          lineId: group.team.line.id,
-          teamId: group.team.id,
-          groupId: group.id,
-          status: RecordStatus.DRAFT,
-          createdById: this.ADMIN_ID,
-          createdAt: new Date(),
-          updatedById: this.ADMIN_ID,
-          updatedAt: new Date(),
-          submitTime: null,
-          approvalRequestId: null,
-          approvedAt: null,
-          isExported: false,
-          syncStatus: null,
-        };
-
-        // Lưu digital form mới
-        await this.digitalFormRepo.insertDigitalForm(newForm);
-        this.logger.log(
-          `Đã tạo digital form cho group ${group.code} - ${group.name}: ${formCode} (${formId})`,
-        );
-      }
-
       // Lấy danh sách công nhân trong group
       const workers = await prisma.user.findMany({
         where: {
@@ -236,50 +257,80 @@ export class DigitalFormSchedulerService {
         `Tìm thấy ${workers.length} công nhân trong group ${group.code} - ${group.name}`,
       );
 
-      // Lấy danh sách túi xách và màu sắc
-      const bagColors = await prisma.bagColor.findMany({
-        where: {
-          active: true,
-        },
-        include: {
-          handBag: true,
-        },
-        take: 1, // Lấy một mẫu để tạo entry mặc định
-      });
-
-      if (bagColors.length === 0) {
-        this.logger.log(
-          `Không tìm thấy mẫu túi xách nào để tạo entries cho group ${group.code}`,
-        );
-        return;
-      }
-
-      // Lấy danh sách quy trình
-      const processes = await prisma.bagProcess.findMany({
-        take: 1, // Lấy một quy trình để tạo entry mặc định
-      });
-
-      if (processes.length === 0) {
-        this.logger.log(
-          `Không tìm thấy quy trình nào để tạo entries cho group ${group.code}`,
-        );
-        return;
-      }
-
-      // Tạo entries cho từng công nhân
+      // Tạo form riêng cho từng công nhân
       for (const worker of workers) {
-        await this.createDefaultEntry(
-          formId, // form ID
-          worker.id, // user ID
-          bagColors[0].handBag.id, // handBag ID
-          bagColors[0].id, // bagColor ID
-          processes[0].id, // process ID
-        );
-      }
+        try {
+          // Kiểm tra xem đã có form nào cho worker này trong ngày hôm nay chưa
+          const existingForm = await prisma.digitalProductionForm.findFirst({
+            where: {
+              userId: worker.id,
+              date: {
+                equals: date,
+              },
+              shiftType: ShiftType.REGULAR,
+            },
+          });
 
-      this.logger.log(
-        `Đã tạo ${workers.length} entries cho digital form ${formId}`,
-      );
+          if (existingForm) {
+            this.logger.log(
+              `Đã tồn tại form cho worker ${worker.fullName} trong ngày hôm nay`,
+            );
+            continue;
+          }
+
+          // Tạo form code
+          const formCode = await this.generateFormCode(
+            group.team.line.factory.id,
+            group.team.line.id,
+            group.team.id,
+            group.id,
+            date,
+            ShiftType.REGULAR,
+          );
+
+          // Tạo form name và description
+          const formName = `Phiếu công đoạn - ${worker.fullName} - ${worker.employeeId || ''} - ${date.toLocaleDateString('vi-VN')}`;
+          const description = `Theo dõi sản lượng ${worker.fullName}`;
+
+          // Tạo digital form mới
+          const formId = uuidv4();
+          const newForm: DigitalForm = {
+            id: formId,
+            formCode,
+            formName,
+            description,
+            date,
+            shiftType: ShiftType.REGULAR,
+            factoryId: group.team.line.factory.id,
+            lineId: group.team.line.id,
+            teamId: group.team.id,
+            groupId: group.id,
+            userId: worker.id, // Thêm trường userId
+            status: RecordStatus.DRAFT,
+            createdById: this.ADMIN_ID,
+            createdAt: new Date(),
+            updatedById: this.ADMIN_ID,
+            updatedAt: new Date(),
+            submitTime: null,
+            approvalRequestId: null,
+            approvedAt: null,
+            isExported: false,
+            syncStatus: null,
+          };
+
+          // Lưu digital form mới
+          await this.digitalFormRepo.insertDigitalForm(newForm);
+          this.logger.log(
+            `Đã tạo digital form cho worker ${worker.fullName}: ${formCode} (${formId})`,
+          );
+        } catch (error) {
+          this.logger.error(
+            `Lỗi khi tạo form cho worker ${worker.fullName}: ${error.message}`,
+            error.stack,
+          );
+          // Tiếp tục với worker tiếp theo nếu có lỗi
+        }
+      }
     } catch (error) {
       this.logger.error(
         `Lỗi khi tạo digital form và entries cho group ${group?.code} - ${group?.name}: ${error.message}`,

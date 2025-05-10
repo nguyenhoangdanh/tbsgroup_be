@@ -35,15 +35,15 @@ export class DigitalFormEntryService
   ): Promise<string> {
     try {
       const form = await this._getAndValidateForm(formId);
-
+  
       // Check permissions
       this._checkPermission(requester, form);
-
+  
       // Check if form is editable
       if (form.status !== 'DRAFT') {
         throw AppError.from(new Error('Form is not in draft status'), 400);
       }
-
+  
       // Check if entry already exists
       const existingEntry = await this.digitalFormRepo.findFormEntry(
         formId,
@@ -52,11 +52,11 @@ export class DigitalFormEntryService
         dto.bagColorId,
         dto.processId,
       );
-
+  
       // Convert string attendance status to enum
       const attendanceStatus = dto.attendanceStatus as AttendanceStatus;
       const shiftType = dto.shiftType as ShiftType;
-
+  
       // Convert issues array if it exists
       const issues = dto.issues
         ? dto.issues.map((issue) => ({
@@ -66,11 +66,42 @@ export class DigitalFormEntryService
             description: issue.description,
           }))
         : undefined;
-
+  
+      // Check if hourlyData is empty and initialize with standard time intervals
+      let hourlyData = dto.hourlyData || {};
+      
+      // Kiểm tra nếu hourlyData là đối tượng rỗng
+      if (Object.keys(hourlyData).length === 0) {
+        // Tạo mặc định các mốc thời gian từ 7:30 đến 16:30 với giá trị 0
+        hourlyData = {
+          '07:30-08:30': 0,
+          '08:30-09:30': 0,
+          '09:30-10:30': 0,
+          '10:30-11:30': 0,
+          '12:30-13:30': 0,
+          '13:30-14:30': 0,
+          '14:30-15:30': 0,
+          '15:30-16:30': 0,
+        };
+        
+        // Mở rộng thêm nếu ca làm việc là EXTENDED hoặc OVERTIME
+        if (shiftType === ShiftType.EXTENDED || shiftType === ShiftType.OVERTIME) {
+          hourlyData['16:30-17:00'] = 0;
+          hourlyData['17:00-18:00'] = 0;
+        }
+        
+        // Thêm khung giờ cho ca OVERTIME nếu cần
+        if (shiftType === ShiftType.OVERTIME) {
+          hourlyData['18:00-19:00'] = 0;
+          hourlyData['19:00-20:00'] = 0;
+        }
+      }
+  
       if (existingEntry) {
         // Update existing entry
         await this.digitalFormRepo.updateFormEntry(existingEntry.id, {
-          hourlyData: dto.hourlyData,
+          plannedOutput: dto.plannedOutput || 0,
+          hourlyData, // Sử dụng hourlyData đã xử lý
           totalOutput: dto.totalOutput,
           attendanceStatus,
           checkInTime: dto.checkInTime ? new Date(dto.checkInTime) : null,
@@ -81,10 +112,10 @@ export class DigitalFormEntryService
           qualityNotes: dto.qualityNotes,
           updatedAt: new Date(),
         });
-
+  
         return existingEntry.id;
       }
-
+  
       // Create new entry
       const newId = uuidv4();
       const newEntry: DigitalFormEntry = {
@@ -94,7 +125,8 @@ export class DigitalFormEntryService
         handBagId: dto.handBagId,
         bagColorId: dto.bagColorId,
         processId: dto.processId,
-        hourlyData: dto.hourlyData,
+        plannedOutput: dto.plannedOutput || 0,
+        hourlyData, // Sử dụng hourlyData đã xử lý
         totalOutput: dto.totalOutput,
         attendanceStatus,
         shiftType,
@@ -117,11 +149,9 @@ export class DigitalFormEntryService
         `Error adding form entry: ${error.message}`,
         error.stack,
       );
-
       if (error instanceof AppError) {
         throw error;
       }
-
       throw AppError.from(
         new Error(`Error adding form entry: ${error.message}`),
         400,
@@ -159,15 +189,23 @@ export class DigitalFormEntryService
 
       // Cập nhật hourlyData nếu được cung cấp
       if (dto.hourlyData !== undefined) {
-        updateData.hourlyData = dto.hourlyData;
+        // Kết hợp dữ liệu mới với dữ liệu hiện có
+        const updatedHourlyData = {
+          ...entry.hourlyData, // Giữ lại dữ liệu hiện có
+          ...dto.hourlyData, // Ghi đè bằng dữ liệu mới nếu có
+        };
 
-        // Tự động tính toán totalOutput từ hourlyData nếu không cung cấp totalOutput
-        if (dto.totalOutput === undefined) {
-          updateData.totalOutput = Object.values(dto.hourlyData).reduce(
-            (sum, value) => sum + value,
-            0,
-          );
-        }
+        updateData.hourlyData = updatedHourlyData;
+
+        // Tính toán lại totalOutput từ tất cả dữ liệu hourlyData
+        updateData.totalOutput = Object.values(updatedHourlyData).reduce(
+          (sum, value) => sum + value,
+          0,
+        );
+      }
+      // Chỉ cập nhật totalOutput trực tiếp nếu không cập nhật hourlyData
+      else if (dto.totalOutput !== undefined) {
+        updateData.totalOutput = dto.totalOutput;
       }
 
       // Cập nhật các trường khác nếu được cung cấp

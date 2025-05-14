@@ -6,6 +6,7 @@ import {
   RequestPasswordResetDTO,
   ResetPasswordDTO,
 } from './auth.dto';
+import { User } from '../user/user.model';
 
 export interface ITokenService {
   generateToken(payload: TokenPayload, expiresIn?: string): Promise<string>;
@@ -24,6 +25,7 @@ export interface IAuthService {
     token: string;
     expiresIn: number;
     requiredResetPassword: boolean;
+    user: Omit<User, 'password' | 'salt'>;
   }>;
   logout(token: string): Promise<void>;
   introspectToken(token: string): Promise<TokenPayload>;

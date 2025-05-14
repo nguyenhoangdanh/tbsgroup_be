@@ -508,6 +508,46 @@ export const digitalFormEntryDTOSchema = z.object({
 // Update Form Entry DTO
 export class UpdateFormEntryDTO {
   @ApiProperty({
+    description: 'ID worker',
+    format: 'uuid',
+    required: false,
+    example: '123e4567-e89b-12d3-a456-426614174012',
+  })
+  userId?: string;
+
+  @ApiProperty({
+    description: 'ID of the handbag model',
+    format: 'uuid',
+    required: false,
+    example: '123e4567-e89b-12d3-a456-426614174012',
+  })
+  handBagId?: string;
+
+  @ApiProperty({
+    description: 'ID of the bag color',
+    format: 'uuid',
+    required: false,
+    example: '123e4567-e89b-12d3-a456-426614174013',
+  })
+  bagColorId?: string;
+
+  @ApiProperty({
+    description: 'ID of the production process',
+    format: 'uuid',
+    required: false,
+    example: '123e4567-e89b-12d3-a456-426614174014',
+  })
+  processId?: string;
+
+  @ApiProperty({
+    description: 'Planned output goal',
+    type: Number,
+    required: false,
+    example: 50,
+  })
+  plannedOutput?: number;
+
+  @ApiProperty({
     description: 'Hourly production data (hour -> output count)',
     required: false,
     example: {
@@ -533,6 +573,14 @@ export class UpdateFormEntryDTO {
     example: AttendanceStatus.PRESENT,
   })
   attendanceStatus?: AttendanceStatus;
+
+  @ApiProperty({
+    description: 'Shift type of the worker',
+    enum: ShiftType,
+    required: false,
+    example: ShiftType.REGULAR,
+  })
+  shiftType?: ShiftType;
 
   @ApiProperty({
     description: 'Check-in time (ISO datetime)',
@@ -588,46 +636,34 @@ export class UpdateFormEntryDTO {
   qualityNotes?: string;
 }
 
-export const updateFormEntryDTOSchema = z.object({
-  hourlyData: z.record(z.string(), z.number()).optional(),
-  totalOutput: z.number().int().optional(),
-  // attendanceStatus: z
-  //   .enum(['PRESENT', 'ABSENT', 'LATE', 'EARLY_LEAVE', 'LEAVE_APPROVED'])
-  //   .optional(),
-  attendanceStatus: z
-    .enum(['PRESENT', 'ABSENT', 'LATE', 'EARLY_LEAVE', 'LEAVE_APPROVED'])
-    .transform((val) => AttendanceStatus[val as keyof typeof AttendanceStatus])
-    .default('PRESENT'),
+// Schemas cho các issues tracking
+export const productionIssueSchema = z.object({
+  type: z.nativeEnum(ProductionIssueType),
+  hour: z.number().int(),
+  impact: z.number().int().min(0).max(100),
+  description: z.string().optional(),
+});
 
-  shiftType: z
-    .enum(['REGULAR', 'EXTENDED', 'OVERTIME'])
-    .transform((val) => ShiftType[val as keyof typeof ShiftType])
-    .default(ShiftType.REGULAR),
+export const updateFormEntryDTOSchema = z.object({
+  // Không cho phép thay đổi userId
+
+  // Các trường có thể cập nhật
+  handBagId: z.string().uuid().optional(),
+  bagColorId: z.string().uuid().optional(),
+  processId: z.string().uuid().optional(),
+
+  hourlyData: z.record(z.string(), z.number()).optional(),
+  plannedOutput: z.number().int().optional(),
+  totalOutput: z.number().int().optional(),
+
+  attendanceStatus: z.nativeEnum(AttendanceStatus).optional(),
+  shiftType: z.nativeEnum(ShiftType).optional(),
   checkInTime: z.string().optional(),
   checkOutTime: z.string().optional(),
   attendanceNote: z.string().optional(),
-  issues: z
-    .array(
-      z.object({
-        type: z
-          .enum([
-            'ABSENT',
-            'LATE',
-            'WAITING_MATERIALS',
-            'QUALITY_ISSUES',
-            'LOST_MATERIALS',
-            'OTHER',
-          ])
-          .transform(
-            (val) =>
-              ProductionIssueType[val as keyof typeof ProductionIssueType],
-          ),
-        hour: z.number().int(),
-        impact: z.number().int().min(0).max(100),
-        description: z.string().optional(),
-      }),
-    )
-    .optional(),
+
+  issues: z.array(productionIssueSchema).optional(),
+
   qualityScore: z.number().int().min(0).max(100).optional(),
   qualityNotes: z.string().optional(),
 });

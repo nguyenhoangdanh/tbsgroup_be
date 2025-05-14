@@ -115,6 +115,7 @@ export class AuthService implements IAuthService {
     token: string;
     expiresIn: number;
     requiredResetPassword: boolean;
+    user: Omit<User, 'password' | 'salt'>;
   }> {
     try {
       // Find user by username
@@ -173,6 +174,23 @@ export class AuthService implements IAuthService {
       this.logger.log(`User logged in: ${user.username} (${user.id})`);
 
       return {
+        user: {
+          id: user.id,
+          username: user.username,
+          role: user.role,
+          roleId: user.roleId,
+          fullName: user.fullName,
+          employeeId: user.employeeId,
+          cardId: user.cardId,
+          factoryId: user.factoryId || null,
+          lineId: user.lineId || null,
+          teamId: user.teamId || null,
+          groupId: user.groupId || null,
+          positionId: user.positionId || null,
+          status: user.status,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+        },
         token,
         expiresIn: expirationTime,
         requiredResetPassword: user.status === UserStatus.PENDING_ACTIVATION,

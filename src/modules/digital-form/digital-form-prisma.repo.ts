@@ -594,7 +594,34 @@ export class DigitalFormPrismaRepository implements IDigitalFormRepository {
       const entries = await prisma.productionFormEntry.findMany({
         where: { formId },
         include: {
-          user: true,
+          user: {
+            include: {
+              factory: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+              line: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+              team: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+              group: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
           handBag: true,
           process: true,
           bagColor: true,

@@ -826,11 +826,21 @@ export class DigitalFormHttpController {
     @Request() req: ReqWithRequester,
     @Param('formId') formId: string,
     @Param('entryId') entryId: string,
-    @Body() dto: { hourlyData: Record<string, number> },
+    @Body()
+    dto: {
+      handBagId: string;
+      bagColorId: string;
+      processId: string;
+      hourlyData: Record<string, number>;
+    },
   ) {
     try {
       // Tạo đối tượng UpdateFormEntryDTO chỉ với hourlyData
       const updateDto: UpdateFormEntryDTO = {
+        userId: req.requester.sub,
+        handBagId: dto.handBagId,
+        bagColorId: dto.bagColorId,
+        processId: dto.processId,
         hourlyData: dto.hourlyData,
       };
 
@@ -909,7 +919,14 @@ export class DigitalFormHttpController {
     @Request() req: ReqWithRequester,
     @Param('formId') formId: string,
     @Param('entryId') entryId: string,
-    @Body() dto: { attendanceStatus: string; attendanceNote?: string },
+    @Body()
+    dto: {
+      handBagId: string;
+      bagColorId: string;
+      processId: string;
+      attendanceStatus: string;
+      attendanceNote?: string;
+    },
   ) {
     try {
       // Validate attendance status
@@ -926,6 +943,10 @@ export class DigitalFormHttpController {
 
       // Tạo đối tượng UpdateFormEntryDTO chỉ với attendanceStatus và attendanceNote
       const updateDto: UpdateFormEntryDTO = {
+        userId: req.requester.sub,
+        handBagId: dto.handBagId,
+        bagColorId: dto.bagColorId,
+        processId: dto.processId,
         attendanceStatus: dto.attendanceStatus as AttendanceStatus,
         attendanceNote: dto.attendanceNote,
       };

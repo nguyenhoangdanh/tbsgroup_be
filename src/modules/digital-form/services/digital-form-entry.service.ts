@@ -35,16 +35,24 @@ export class DigitalFormEntryService
   ): Promise<string> {
     try {
       const form = await this._getAndValidateForm(formId);
-  
+
       // Check permissions
       this._checkPermission(requester, form);
-  
+
       // Check if form is editable
       if (form.status !== 'DRAFT') {
         throw AppError.from(new Error('Form is not in draft status'), 400);
       }
-  
-      // Check if entry already exists
+
+      // Kiểm tra userId trong DTO có khớp với userId của form không
+      if (dto.userId !== form.userId) {
+        throw AppError.from(
+          new Error(`Entry userId does not match form userId`),
+          400,
+        );
+      }
+
+      // Kiểm tra entry đã tồn tại
       const existingEntry = await this.digitalFormRepo.findFormEntry(
         formId,
         dto.userId,
@@ -52,11 +60,20 @@ export class DigitalFormEntryService
         dto.bagColorId,
         dto.processId,
       );
-  
+
+      if (existingEntry) {
+        throw AppError.from(
+          new Error(
+            `An entry with this combination of handBag, bagColor, and process already exists for this worker. Use the update endpoint to modify existing entries.`,
+          ),
+          400,
+        );
+      }
+
       // Convert string attendance status to enum
       const attendanceStatus = dto.attendanceStatus as AttendanceStatus;
       const shiftType = dto.shiftType as ShiftType;
-  
+
       // Convert issues array if it exists
       const issues = dto.issues
         ? dto.issues.map((issue) => ({
@@ -66,10 +83,10 @@ export class DigitalFormEntryService
             description: issue.description,
           }))
         : undefined;
-  
-      // Check if hourlyData is empty and initialize with standard time intervals
+
+      // Cấu trúc dữ liệu hourlyData mặc định dựa trên loại ca
       let hourlyData = dto.hourlyData || {};
-      
+
       // Kiểm tra nếu hourlyData là đối tượng rỗng
       if (Object.keys(hourlyData).length === 0) {
         // Tạo mặc định các mốc thời gian từ 7:30 đến 16:30 với giá trị 0
@@ -83,39 +100,23 @@ export class DigitalFormEntryService
           '14:30-15:30': 0,
           '15:30-16:30': 0,
         };
-        
+
         // Mở rộng thêm nếu ca làm việc là EXTENDED hoặc OVERTIME
-        if (shiftType === ShiftType.EXTENDED || shiftType === ShiftType.OVERTIME) {
+        if (
+          shiftType === ShiftType.EXTENDED ||
+          shiftType === ShiftType.OVERTIME
+        ) {
           hourlyData['16:30-17:00'] = 0;
           hourlyData['17:00-18:00'] = 0;
         }
-        
+
         // Thêm khung giờ cho ca OVERTIME nếu cần
         if (shiftType === ShiftType.OVERTIME) {
           hourlyData['18:00-19:00'] = 0;
           hourlyData['19:00-20:00'] = 0;
         }
       }
-  
-      if (existingEntry) {
-        // Update existing entry
-        await this.digitalFormRepo.updateFormEntry(existingEntry.id, {
-          plannedOutput: dto.plannedOutput || 0,
-          hourlyData, // Sử dụng hourlyData đã xử lý
-          totalOutput: dto.totalOutput,
-          attendanceStatus,
-          checkInTime: dto.checkInTime ? new Date(dto.checkInTime) : null,
-          checkOutTime: dto.checkOutTime ? new Date(dto.checkOutTime) : null,
-          attendanceNote: dto.attendanceNote,
-          issues,
-          qualityScore: dto.qualityScore,
-          qualityNotes: dto.qualityNotes,
-          updatedAt: new Date(),
-        });
-  
-        return existingEntry.id;
-      }
-  
+
       // Create new entry
       const newId = uuidv4();
       const newEntry: DigitalFormEntry = {
@@ -127,7 +128,7 @@ export class DigitalFormEntryService
         processId: dto.processId,
         plannedOutput: dto.plannedOutput || 0,
         hourlyData, // Sử dụng hourlyData đã xử lý
-        totalOutput: dto.totalOutput,
+        totalOutput: dto.totalOutput || 0,
         attendanceStatus,
         shiftType,
         checkInTime: dto.checkInTime ? new Date(dto.checkInTime) : null,
@@ -167,7 +168,6 @@ export class DigitalFormEntryService
   ): Promise<void> {
     try {
       const form = await this._getAndValidateForm(formId);
-
       // Kiểm tra quyền
       this._checkPermission(requester, form);
 
@@ -184,8 +184,34 @@ export class DigitalFormEntryService
         throw AppError.from(new Error(`Entry not found: ${entryId}`), 404);
       }
 
+      if (dto.handBagId || dto.bagColorId || dto.processId) {
+        const existingEntry = await this.digitalFormRepo.findFormEntry(
+          formId,
+          entry.userId, // Use the userId from the existing entry
+          dto.handBagId || entry.handBagId, // Use new value if provided, otherwise existing
+          dto.bagColorId || entry.bagColorId,
+          dto.processId || entry.processId,
+        );
+
+        if (existingEntry && existingEntry.id !== entryId) {
+          throw AppError.from(
+            new Error(
+              `An entry with this combination of handBag, bagColor, and process already exists for this worker.`,
+            ),
+            400,
+          );
+        }
+      }
+
       // Chuẩn bị dữ liệu cập nhật
       const updateData: Partial<DigitalFormEntry> = {};
+
+      // Cập nhật thông tin túi nếu được cung cấp
+      if (dto.handBagId !== undefined) updateData.handBagId = dto.handBagId;
+      if (dto.bagColorId !== undefined) updateData.bagColorId = dto.bagColorId;
+      if (dto.processId !== undefined) updateData.processId = dto.processId;
+      if (dto.plannedOutput !== undefined)
+        updateData.plannedOutput = dto.plannedOutput;
 
       // Cập nhật hourlyData nếu được cung cấp
       if (dto.hourlyData !== undefined) {
@@ -209,14 +235,17 @@ export class DigitalFormEntryService
       }
 
       // Cập nhật các trường khác nếu được cung cấp
-      if (dto.totalOutput !== undefined)
-        updateData.totalOutput = dto.totalOutput;
       if (dto.attendanceStatus !== undefined) {
         // Chuyển đổi từ chuỗi sang enum
         updateData.attendanceStatus =
           AttendanceStatus[
             dto.attendanceStatus as keyof typeof AttendanceStatus
           ];
+      }
+
+      if (dto.shiftType !== undefined) {
+        updateData.shiftType =
+          ShiftType[dto.shiftType as keyof typeof ShiftType];
       }
 
       if (dto.checkInTime !== undefined) {

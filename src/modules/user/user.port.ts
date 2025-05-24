@@ -89,10 +89,13 @@ export interface IUserRepository {
 
   removeRole(userId: string, roleId: string, scope?: string): Promise<void>;
 
-  getUserRoles(
-    userId: string,
-  ): Promise<
-    { roleId: string; role: UserRole; scope?: string; expiryDate?: Date }[]
+  getUserRoles(userId: string): Promise<
+    {
+      roleId: string;
+      role: UserRole;
+      scope?: string;
+      expiryDate?: Date | null;
+    }[]
   >;
 
   // Entity access

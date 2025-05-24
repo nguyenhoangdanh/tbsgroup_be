@@ -13,8 +13,8 @@ export enum UserRole {
 
 export interface TokenPayload {
   sub: string;
-  roleId?: string;
-  role?: UserRole;
+  roleId: string;
+  role: string;
   factoryId?: string;
   lineId?: string;
   teamId?: string;

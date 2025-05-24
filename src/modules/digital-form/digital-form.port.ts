@@ -152,149 +152,6 @@ export interface IDigitalFormRepository {
 }
 
 // Interface for digital form service
-// export interface IDigitalFormService {
-//   // Form methods
-//   createDigitalForm(
-//     requester: Requester,
-//     dto: DigitalFormCreateDTO,
-//   ): Promise<string>;
-
-//   getDigitalForm(id: string): Promise<DigitalForm>;
-
-//   getDigitalFormWithEntries(id: string): Promise<{
-//     form: DigitalForm;
-//     entries: DigitalFormEntry[];
-//   }>;
-
-//   updateDigitalForm(
-//     requester: Requester,
-//     id: string,
-//     dto: DigitalFormUpdateDTO,
-//   ): Promise<void>;
-
-//   deleteDigitalForm(requester: Requester, id: string): Promise<void>;
-
-//   listDigitalForms(
-//     conditions: DigitalFormCondDTO,
-//     pagination: PaginationDTO,
-//   ): Promise<{
-//     data: DigitalForm[];
-//     total: number;
-//     page: number;
-//     limit: number;
-//   }>;
-
-//   // Form entry methods
-//   addFormEntry(
-//     requester: Requester,
-//     formId: string,
-//     dto: DigitalFormEntryDTO,
-//   ): Promise<string>;
-
-//   deleteFormEntry(
-//     requester: Requester,
-//     formId: string,
-//     entryId: string,
-//   ): Promise<void>;
-
-//   // Form workflow methods
-//   submitDigitalForm(
-//     requester: Requester,
-//     id: string,
-//     dto: DigitalFormSubmitDTO,
-//   ): Promise<void>;
-
-//   approveDigitalForm(requester: Requester, id: string): Promise<void>;
-
-//   rejectDigitalForm(requester: Requester, id: string): Promise<void>;
-
-//   getProductionReportByFactory(
-//     factoryId: string,
-//     dateFrom: string,
-//     dateTo: string,
-//     options?: {
-//       includeLines?: boolean;
-//       includeTeams?: boolean;
-//       includeGroups?: boolean;
-//       groupByBag?: boolean;
-//       groupByProcess?: boolean;
-//     },
-//   ): Promise<FactoryProductionReport>;
-
-//   getProductionReportByLine(
-//     lineId: string,
-//     dateFrom: string,
-//     dateTo: string,
-//     options?: {
-//       includeTeams?: boolean;
-//       includeGroups?: boolean;
-//       groupByBag?: boolean;
-//       groupByProcess?: boolean;
-//     },
-//   ): Promise<LineProductionReport>;
-
-//   getProductionReportByTeam(
-//     teamId: string,
-//     dateFrom: string,
-//     dateTo: string,
-//     options?: {
-//       includeGroups?: boolean;
-//       includeWorkers?: boolean;
-//       groupByBag?: boolean;
-//       groupByProcess?: boolean;
-//     },
-//   ): Promise<TeamProductionReport>;
-
-//   getProductionReportByGroup(
-//     groupId: string,
-//     dateFrom: string,
-//     dateTo: string,
-//     options?: {
-//       includeWorkers?: boolean;
-//       detailedAttendance?: boolean;
-//       groupByBag?: boolean;
-//       groupByProcess?: boolean;
-//     },
-//   ): Promise<GroupProductionReport>;
-
-//   getProductionComparisonReport(
-//     lineId: string,
-//     entityIds: string[], // Team or group IDs
-//     compareBy: 'team' | 'group',
-//     dateFrom: string,
-//     dateTo: string,
-//     options?: {
-//       includeHandBags?: boolean;
-//       includeProcesses?: boolean;
-//       includeTimeSeries?: boolean;
-//     },
-//   ): Promise<ProductionComparisonReport>;
-
-//   // Specialized reports
-//   // getProductivityTrendsReport(
-//   //   entityType: 'line' | 'team' | 'group',
-//   //   entityId: string,
-//   //   period: 'day' | 'week' | 'month',
-//   //   dateFrom: string,
-//   //   dateTo: string,
-//   // ): Promise<ProductivityTrendsReport>;
-
-//   // getQualityAnalysisReport(
-//   //   entityType: 'line' | 'team' | 'group',
-//   //   entityId: string,
-//   //   dateFrom: string,
-//   //   dateTo: string,
-//   // ): Promise<QualityAnalysisReport>;
-
-//   // Export reports
-//   exportProductionReport(
-//     reportType: 'team' | 'group' | 'comparison',
-//     parameters: any,
-//     format: 'pdf' | 'excel' | 'csv',
-//   ): Promise<{ fileUrl: string }>;
-// }
-
-// Main interface for service (unchanged)
 export interface IDigitalFormService {
   // Form methods
   createDigitalForm(
@@ -334,6 +191,13 @@ export interface IDigitalFormService {
     dto: DigitalFormEntryDTO,
   ): Promise<string>;
 
+  updateFormEntry(
+    requester: Requester,
+    formId: string,
+    entryId: string,
+    dto: UpdateFormEntryDTO,
+  ): Promise<void>;
+
   deleteFormEntry(
     requester: Requester,
     formId: string,
@@ -349,9 +213,47 @@ export interface IDigitalFormService {
 
   approveDigitalForm(requester: Requester, id: string): Promise<void>;
 
-  rejectDigitalForm(requester: Requester, id: string): Promise<void>;
+  rejectDigitalForm(
+    requester: Requester,
+    id: string,
+    reason: string,
+  ): Promise<void>;
 
   // Report methods
+  generateTeamReport(
+    teamId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<TeamProductionReport>;
+
+  generateGroupReport(
+    groupId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<GroupProductionReport>;
+
+  generateLineReport(
+    lineId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<LineProductionReport>;
+
+  generateFactoryReport(
+    factoryId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<FactoryProductionReport>;
+
+  generateComparisonReport(params: {
+    factoryId?: string;
+    lineIds?: string[];
+    teamIds?: string[];
+    groupIds?: string[];
+    startDate: Date;
+    endDate: Date;
+  }): Promise<ProductionComparisonReport>;
+
+  // Add the missing methods that are used in the controller
   getProductionReportByFactory(
     factoryId: string,
     dateFrom: string,
@@ -414,7 +316,6 @@ export interface IDigitalFormService {
     },
   ): Promise<ProductionComparisonReport>;
 
-  // Export methods
   exportProductionReport(
     reportType: 'team' | 'group' | 'comparison',
     parameters: any,
@@ -490,7 +391,11 @@ export interface IDigitalFormWorkflowService {
 
   approveDigitalForm(requester: Requester, id: string): Promise<void>;
 
-  rejectDigitalForm(requester: Requester, id: string): Promise<void>;
+  rejectDigitalForm(
+    requester: Requester,
+    id: string,
+    reason: string,
+  ): Promise<void>;
 }
 
 export interface IDigitalFormReportService {

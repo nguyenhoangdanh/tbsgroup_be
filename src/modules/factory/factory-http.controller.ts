@@ -23,6 +23,7 @@ import {
   FactoryManagerDTO,
   FactoryUpdateDTO,
   PaginationDTO,
+  SwitchRepositoryDTO,
 } from './factory.dto';
 import { ErrFactoryNotFound } from './factory.model';
 import { IFactoryService } from './factory.port';
@@ -47,6 +48,11 @@ export class FactoryHttpController {
     @Request() req: ReqWithRequester,
     @Body() dto: FactoryCreateDTO,
   ) {
+    // Log user role for debugging
+    this.logger.log(
+      `User ${req.requester.sub} with role ${req.requester.role} attempting to create factory`,
+    );
+
     const factoryId = await this.factoryService.createFactory(
       req.requester,
       dto,
@@ -196,6 +202,40 @@ export class FactoryHttpController {
     }
 
     return { success: true, data: [] };
+  }
+
+  // New endpoints for managing factory repository adapter
+  @Get('system/repository-info')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  async getRepositoryInfo(): Promise<{
+    type: string;
+    name: string;
+    version?: string;
+  }> {
+    return this.factoryService.getRepositoryInfo();
+  }
+
+  @Post('system/switch-repository')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  async switchRepositoryType(
+    @Body() dto: SwitchRepositoryDTO,
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      await this.factoryService.switchRepositoryType(dto.type, dto.config);
+      return {
+        success: true,
+        message: `Successfully switched to repository type: ${dto.type}`,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to switch repository: ${error.message}`,
+      };
+    }
   }
 }
 

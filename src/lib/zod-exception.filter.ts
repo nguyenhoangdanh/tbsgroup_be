@@ -1,4 +1,9 @@
-import { ExceptionFilter, Catch, ArgumentsHost } from '@nestjs/common';
+import {
+  ExceptionFilter,
+  Catch,
+  ArgumentsHost,
+  HttpStatus,
+} from '@nestjs/common';
 import { Response } from 'express';
 import { ZodError } from 'zod';
 
@@ -7,13 +12,25 @@ export class ZodExceptionFilter implements ExceptionFilter {
   catch(exception: ZodError, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest();
 
-    response.status(400).json({
-      statusCode: 400,
+    // Log các chi tiết lỗi để dễ debug
+    console.error('ZodError caught:', {
+      path: request.path,
+      method: request.method,
+      body: request.body,
+      error: exception.errors,
+    });
+
+    response.status(HttpStatus.BAD_REQUEST).json({
+      statusCode: HttpStatus.BAD_REQUEST,
       message: 'Validation failed',
+      timestamp: new Date().toISOString(),
+      path: request.url,
       errors: exception.errors.map((err) => ({
         path: err.path.join('.'),
         message: err.message,
+        code: err.code,
       })),
     });
   }

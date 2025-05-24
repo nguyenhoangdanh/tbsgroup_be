@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { AppError, ErrNotFound, Requester, UserRole } from 'src/share';
 import { v4 as uuidv4 } from 'uuid';
 import { LINE_REPOSITORY } from '../line/line.di-token';
@@ -27,6 +27,9 @@ export class TeamService
   extends BaseCrudService<Team, TeamCreateDTO, TeamUpdateDTO>
   implements ITeamService
 {
+  // Add explicit protected logger
+  protected readonly logger = new Logger(TeamService.name);
+
   constructor(
     @Inject(TEAM_REPOSITORY)
     private readonly teamRepo: ITeamRepository,

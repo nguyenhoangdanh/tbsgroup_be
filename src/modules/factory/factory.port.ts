@@ -1,4 +1,5 @@
-import { Requester } from 'src/share';
+import { ReqWithRequester } from 'src/share';
+import { Factory } from './factory.model';
 import {
   FactoryCondDTO,
   FactoryCreateDTO,
@@ -6,65 +7,133 @@ import {
   FactoryUpdateDTO,
   PaginationDTO,
 } from './factory.dto';
-import { Factory } from './factory.model';
+// Re-export tokens from di-token.ts to avoid duplication
+import {
+  FACTORY_SERVICE,
+  FACTORY_REPOSITORY,
+  FACTORY_ADAPTER_FACTORY,
+} from './factory.di-token';
+export { FACTORY_SERVICE, FACTORY_REPOSITORY, FACTORY_ADAPTER_FACTORY };
 
-// Interface cho factory repository
+/**
+ * Factory Repository Interface
+ * Defines the operations that can be performed on factory data
+ */
 export interface IFactoryRepository {
-  // Query
+  /**
+   * Get a factory by ID
+   */
   get(id: string): Promise<Factory | null>;
+
+  /**
+   * Find a factory by code
+   */
   findByCode(code: string): Promise<Factory | null>;
-  findByCond(cond: FactoryCondDTO): Promise<Factory | null>;
+
+  /**
+   * Find a factory by conditions
+   */
+  findByCond(cond: any): Promise<Factory | null>;
+
+  /**
+   * List factories with pagination and filtering
+   */
   list(
-    conditions: FactoryCondDTO,
-    pagination: PaginationDTO,
-  ): Promise<{
-    data: Factory[];
-    total: number;
-  }>;
+    conditions: any,
+    pagination: {
+      page: number;
+      limit: number;
+      sortBy?: string;
+      sortOrder?: string;
+    },
+  ): Promise<{ data: Factory[]; total: number }>;
+
+  /**
+   * List factories by IDs
+   */
   listByIds(ids: string[]): Promise<Factory[]>;
+
+  /**
+   * List factories by department ID
+   */
   listByDepartmentId(departmentId: string): Promise<Factory[]>;
 
-  // Command
+  /**
+   * Insert a new factory
+   */
   insert(factory: Factory): Promise<void>;
+
+  /**
+   * Update a factory
+   */
   update(id: string, dto: Partial<Factory>): Promise<void>;
+
+  /**
+   * Delete a factory
+   */
   delete(id: string): Promise<void>;
 
-  // Factory manager methods
-  addManager(factoryId: string, managerDTO: FactoryManagerDTO): Promise<void>;
+  /**
+   * Add a manager to a factory
+   */
+  addManager(factoryId: string, managerDTO: any): Promise<void>;
+
+  /**
+   * Remove a manager from a factory
+   */
   removeManager(factoryId: string, userId: string): Promise<void>;
+
+  /**
+   * Update a factory manager
+   */
   updateManager(
     factoryId: string,
     userId: string,
     isPrimary: boolean,
     endDate?: Date,
   ): Promise<void>;
+
+  /**
+   * Get all managers for a factory
+   */
   getManagers(factoryId: string): Promise<
-    {
+    Array<{
       userId: string;
       isPrimary: boolean;
       startDate: Date;
       endDate: Date | null;
-    }[]
+    }>
   >;
 
-  // Validation methods
+  /**
+   * Check if a factory has associated lines
+   */
   hasLines(factoryId: string): Promise<boolean>;
+
+  /**
+   * Check if a user is a manager for a factory
+   */
   isManager(userId: string, factoryId: string): Promise<boolean>;
 }
 
-// Interface cho factory service
+/**
+ * Factory Service Interface
+ * Defines the business logic for factory operations
+ */
 export interface IFactoryService {
-  // Factory CRUD
-  createFactory(requester: Requester, dto: FactoryCreateDTO): Promise<string>;
-  updateFactory(
-    requester: Requester,
-    id: string,
-    dto: FactoryUpdateDTO,
-  ): Promise<void>;
-  deleteFactory(requester: Requester, id: string): Promise<void>;
-  getFactory(id: string): Promise<Factory>;
+  /**
+   * Create a new factory
+   */
+  createFactory(
+    requester: ReqWithRequester['requester'],
+    dto: FactoryCreateDTO,
+  ): Promise<string>;
+
+  /**
+   * List factories with pagination and filtering
+   */
   listFactories(
-    requester: Requester,
+    requester: ReqWithRequester['requester'],
     conditions: FactoryCondDTO,
     pagination: PaginationDTO,
   ): Promise<{
@@ -72,56 +141,93 @@ export interface IFactoryService {
     total: number;
     page: number;
     limit: number;
+    totalPages: number;
   }>;
 
-  // Factory manager methods
+  /**
+   * Get a factory by ID
+   */
+  getFactory(id: string): Promise<Factory>;
+
+  /**
+   * Update a factory
+   */
+  updateFactory(
+    requester: ReqWithRequester['requester'],
+    id: string,
+    dto: FactoryUpdateDTO,
+  ): Promise<void>;
+
+  /**
+   * Delete a factory
+   */
+  deleteFactory(
+    requester: ReqWithRequester['requester'],
+    id: string,
+  ): Promise<void>;
+
+  /**
+   * Add a manager to a factory
+   */
   addFactoryManager(
-    requester: Requester,
+    requester: ReqWithRequester['requester'],
     factoryId: string,
-    managerDTO: FactoryManagerDTO,
+    dto: FactoryManagerDTO,
   ): Promise<void>;
-  removeFactoryManager(
-    requester: Requester,
-    factoryId: string,
-    userId: string,
-  ): Promise<void>;
+
+  /**
+   * Update a factory manager
+   */
   updateFactoryManager(
-    requester: Requester,
+    requester: ReqWithRequester['requester'],
     factoryId: string,
     userId: string,
     isPrimary: boolean,
     endDate?: Date,
   ): Promise<void>;
+
+  /**
+   * Remove a manager from a factory
+   */
+  removeFactoryManager(
+    requester: ReqWithRequester['requester'],
+    factoryId: string,
+    userId: string,
+  ): Promise<void>;
+
+  /**
+   * Get all managers for a factory
+   */
   getFactoryManagers(factoryId: string): Promise<
-    {
+    Array<{
       userId: string;
       isPrimary: boolean;
       startDate: Date;
       endDate: Date | null;
-      user?: {
-        id: string;
-        fullName: string;
-        avatar?: string | null;
-      };
-    }[]
+    }>
   >;
 
-  // Access validation
+  /**
+   * Check if a user can manage a factory
+   */
   canManageFactory(userId: string, factoryId: string): Promise<boolean>;
+
+  /**
+   * Get all factories that a user has access to
+   */
   getUserAccessibleFactories(userId: string): Promise<string[]>;
-  linkFactoryWithManagingDepartment(
-    requester: Requester,
-    factoryId: string,
-    departmentId: string,
-  ): Promise<void>;
-  listFactories(
-    requester: Requester,
-    conditions: FactoryCondDTO,
-    pagination: PaginationDTO,
-  ): Promise<{
-    data: Factory[];
-    total: number;
-    page: number;
-    limit: number;
+
+  /**
+   * Switch repository type at runtime
+   */
+  switchRepositoryType(type: string, config?: any): Promise<void>;
+
+  /**
+   * Get repository adapter information
+   */
+  getRepositoryInfo(): Promise<{
+    type: string;
+    name: string;
+    version?: string;
   }>;
 }

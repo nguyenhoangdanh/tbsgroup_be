@@ -1,10 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { BagProcess as PrismaBagProcess, Prisma } from '@prisma/client';
 import prisma from 'src/share/components/prisma';
-import {
-  BagProcessCondDTO,
-  PaginationDTO,
-} from './bag-process.dto';
+import { BagProcessCondDTO, PaginationDTO } from './bag-process.dto';
 import { BagProcess } from './bag-process.model';
 import { IBagProcessRepository } from './bag-process.port';
 
@@ -115,7 +112,9 @@ export class BagProcessPrismaRepository implements IBagProcessRepository {
     }
   }
 
-  async findBagProcessByCond(cond: BagProcessCondDTO): Promise<BagProcess | null> {
+  async findBagProcessByCond(
+    cond: BagProcessCondDTO,
+  ): Promise<BagProcess | null> {
     try {
       const data = await prisma.bagProcess.findFirst({
         where: this._bagProcessConditionsToWhereClause(cond),
@@ -127,7 +126,9 @@ export class BagProcessPrismaRepository implements IBagProcessRepository {
         `Error finding bag process by conditions: ${error.message}`,
         error.stack,
       );
-      throw new Error(`Failed to find bag process by conditions: ${error.message}`);
+      throw new Error(
+        `Failed to find bag process by conditions: ${error.message}`,
+      );
     }
   }
 
@@ -187,6 +188,7 @@ export class BagProcessPrismaRepository implements IBagProcessRepository {
           machineType: bagProcess.machineType,
         },
       });
+      this.logger.log(`Successfully created bag process: ${bagProcess.code}`);
     } catch (error) {
       this.logger.error(
         `Error inserting bag process: ${error.message}`,
@@ -202,17 +204,24 @@ export class BagProcessPrismaRepository implements IBagProcessRepository {
       const updateData: Prisma.BagProcessUpdateInput = {};
 
       if (dto.name !== undefined) updateData.name = dto.name;
-      if (dto.description !== undefined) updateData.description = dto.description;
+      if (dto.description !== undefined)
+        updateData.description = dto.description;
       if (dto.orderIndex !== undefined) updateData.orderIndex = dto.orderIndex;
-      if (dto.processType !== undefined) updateData.processType = dto.processType;
-      if (dto.standardOutput !== undefined) updateData.standardOutput = dto.standardOutput;
-      if (dto.cycleDuration !== undefined) updateData.cycleDuration = dto.cycleDuration;
-      if (dto.machineType !== undefined) updateData.machineType = dto.machineType;
+      if (dto.processType !== undefined)
+        updateData.processType = dto.processType;
+      if (dto.standardOutput !== undefined)
+        updateData.standardOutput = dto.standardOutput;
+      if (dto.cycleDuration !== undefined)
+        updateData.cycleDuration = dto.cycleDuration;
+      if (dto.machineType !== undefined)
+        updateData.machineType = dto.machineType;
 
       await prisma.bagProcess.update({
         where: { id },
         data: updateData,
       });
+
+      this.logger.log(`Successfully updated bag process: ${id}`);
     } catch (error) {
       this.logger.error(
         `Error updating bag process ${id}: ${error.message}`,
@@ -227,6 +236,7 @@ export class BagProcessPrismaRepository implements IBagProcessRepository {
       await prisma.bagProcess.delete({
         where: { id },
       });
+      this.logger.log(`Successfully deleted bag process: ${id}`);
     } catch (error) {
       this.logger.error(
         `Error deleting bag process ${id}: ${error.message}`,

@@ -1,20 +1,27 @@
-import { Controller, Inject, Get, Post, Delete, Param, Body, HttpCode, HttpStatus, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Inject,
+  Get,
+  Param,
+  HttpCode,
+  HttpStatus,
+  UseGuards,
+} from '@nestjs/common';
 import { RemoteAuthGuard } from 'src/share/guard';
 import { TEAM_SERVICE } from './team.di-token';
 import { ITeamService } from './team.port';
 import { ErrTeamNotFound } from './team.model';
 import { AppError } from 'src/share';
-import { Team } from './team.model';
 
-@Controller('internal/teams')  // Internal API endpoint path
+@Controller('internal/teams') // Internal API endpoint path
 @UseGuards(RemoteAuthGuard) // Apply RemoteAuthGuard to all endpoints
 export class TeamRpcHttpController {
   constructor(
-    @Inject(TEAM_SERVICE) private readonly teamService: ITeamService
+    @Inject(TEAM_SERVICE) private readonly teamService: ITeamService,
   ) {}
 
   // Internal API endpoints for microservice communication
-  
+
   @Get(':id')
   @HttpCode(HttpStatus.OK)
   async getTeamById(@Param('id') id: string) {

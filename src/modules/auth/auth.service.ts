@@ -54,8 +54,8 @@ export class AuthService implements IAuthService {
 
       let defaultRoleId: string;
       if (dto.roleId) {
-        const role = await this.roleService.getRole(dto.roleId);
-        defaultRoleId = role.id;
+        const roleEntity = await this.roleService.getRole(dto.roleId);
+        defaultRoleId = roleEntity.id;
       } else {
         // If no roleId provided, use WORKER role as default
         const defaultRole = await this.roleService.getRoleByCode(
@@ -144,11 +144,16 @@ export class AuthService implements IAuthService {
       // Determine token expiration based on "remember me" option
       const expiresIn = dto.rememberMe ? '7d' : '1d'; // 7 days or 1 day
 
+      const role = await this.roleService.getRole(user.roleId);
+      if (!role) {
+        throw AppError.from(ErrNotFound, 404);
+      }
+
       // Create token payload
       const tokenPayload: TokenPayload = {
         sub: user.id,
         roleId: user.roleId,
-        role: user.role,
+        role: role.code,
         factoryId: user.factoryId || undefined,
         lineId: user.lineId || undefined,
         teamId: user.teamId || undefined,
@@ -177,7 +182,6 @@ export class AuthService implements IAuthService {
         user: {
           id: user.id,
           username: user.username,
-          role: user.role,
           roleId: user.roleId,
           fullName: user.fullName,
           employeeId: user.employeeId,
@@ -212,22 +216,17 @@ export class AuthService implements IAuthService {
   }
 
   async logout(token: string): Promise<void> {
+    if (!token) {
+      this.logger.warn('Attempted logout with empty token');
+      return;
+    }
+
     try {
-      if (!token) {
-        this.logger.warn('Attempted logout with empty token');
-        return;
-      }
-
-      // Add additional debug logging
-      this.logger.debug(
-        `Processing logout for token: ${token.substring(0, 10)}...`,
-      );
-
       // Decode token payload first to get user info for logging
       const payload = this.tokenService.decodeToken(token);
       const userId = payload?.sub || 'unknown';
 
-      // Check blacklist before to see if token is already blacklisted
+      // Check if token is already blacklisted to avoid unnecessary operations
       const isAlreadyBlacklisted =
         await this.tokenService.isTokenBlacklisted(token);
       if (isAlreadyBlacklisted) {
@@ -237,25 +236,22 @@ export class AuthService implements IAuthService {
 
       // Get token expiration time
       const expiresIn = this.tokenService.getExpirationTime(token);
-      this.logger.debug(`Token expires in ${expiresIn} seconds`);
-
       if (expiresIn <= 0) {
-        this.logger.debug(`Token for user ${userId} already expired`);
+        this.logger.debug(
+          `Token for user ${userId} is already expired, no need to blacklist`,
+        );
         return;
       }
 
+      // Blacklist the token
       await this.tokenService.blacklistToken(token, expiresIn);
-
-      // Verify the token was blacklisted
-      const isNowBlacklisted =
-        await this.tokenService.isTokenBlacklisted(token);
-      if (!isNowBlacklisted) {
-        this.logger.error(`Failed to blacklist token for user ${userId}`);
-      } else {
-        this.logger.log(`User logged out: ${userId}`);
-      }
+      this.logger.log(`User ${userId} successfully logged out`);
     } catch (error) {
       this.logger.error(`Error during logout: ${error.message}`, error.stack);
+      throw AppError.from(
+        new Error(`Có lỗi xảy ra trong quá trình đăng xuất: ${error.message}`),
+        500,
+      );
     }
   }
 
@@ -277,10 +273,15 @@ export class AuthService implements IAuthService {
       throw AppError.from(ErrUserInactivated, 403);
     }
 
+    const role = await this.roleService.getRole(user.roleId);
+    if (!role) {
+      throw AppError.from(ErrNotFound, 404);
+    }
+
     return {
       sub: user.id,
       roleId: user.roleId,
-      role: user.role,
+      role: role.code,
       factoryId: user.factoryId || undefined,
       lineId: user.lineId || undefined,
       teamId: user.teamId || undefined,
@@ -291,45 +292,74 @@ export class AuthService implements IAuthService {
   async refreshToken(
     token: string,
   ): Promise<{ token: string; expiresIn: number }> {
-    // Decode the existing token (without verifying it)
-    const payload = this.tokenService.decodeToken(token);
-    if (!payload) {
-      throw AppError.from(ErrInvalidToken, 401);
+    try {
+      // Decode the existing token (without verifying it)
+      const payload = this.tokenService.decodeToken(token);
+      if (!payload) {
+        throw AppError.from(ErrInvalidToken, 401);
+      }
+
+      // Check if token is blacklisted
+      const isBlacklisted = await this.tokenService.isTokenBlacklisted(token);
+      if (isBlacklisted) {
+        throw AppError.from(ErrInvalidToken, 401);
+      }
+
+      // Get user to ensure they still exist and are active
+      const user = await this.userRepo.get(payload.sub);
+      if (!user) {
+        throw AppError.from(ErrNotFound, 404);
+      }
+
+      if (user.status !== UserStatus.ACTIVE) {
+        throw AppError.from(ErrUserInactivated, 403);
+      }
+
+      const role = await this.roleService.getRole(user.roleId);
+      if (!role) {
+        throw AppError.from(ErrNotFound, 404);
+      }
+
+      // Create a new token with the same payload but new expiration
+      const tokenPayload: TokenPayload = {
+        sub: user.id,
+        roleId: user.roleId,
+        role: role.code,
+        factoryId: user.factoryId || undefined,
+        lineId: user.lineId || undefined,
+        teamId: user.teamId || undefined,
+        groupId: user.groupId || undefined,
+      };
+
+      const newToken = await this.tokenService.generateToken(tokenPayload);
+
+      // Calculate expiration time
+      const expiresIn = this.tokenService.getExpirationTime(newToken);
+
+      // Blacklist the old token
+      const oldTokenExpiresIn = this.tokenService.getExpirationTime(token);
+      if (oldTokenExpiresIn > 0) {
+        await this.tokenService.blacklistToken(token, oldTokenExpiresIn);
+      }
+
+      this.logger.log(`Token refreshed for user: ${user.id}`);
+      return { token: newToken, expiresIn };
+    } catch (error) {
+      this.logger.error(
+        `Error refreshing token: ${error.message}`,
+        error.stack,
+      );
+
+      // Re-throw AppErrors directly, wrap other errors
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw AppError.from(
+        new Error(`Lỗi khi làm mới token: ${error.message}`),
+        500,
+      );
     }
-
-    // Check if token is blacklisted
-    const isBlacklisted = await this.tokenService.isTokenBlacklisted(token);
-    if (isBlacklisted) {
-      throw AppError.from(ErrInvalidToken, 401);
-    }
-
-    // Get user to ensure they still exist and are active
-    const user = await this.userRepo.get(payload.sub);
-    if (!user || user.status !== UserStatus.ACTIVE) {
-      throw AppError.from(ErrUserInactivated, 403);
-    }
-
-    // Create a new token with the same payload but new expiration
-    const newToken = await this.tokenService.generateToken({
-      sub: user.id,
-      roleId: user.roleId,
-      role: user.role,
-      factoryId: user.factoryId || undefined,
-      lineId: user.lineId || undefined,
-      teamId: user.teamId || undefined,
-      groupId: user.groupId || undefined,
-    });
-
-    // Calculate expiration time
-    const expiresIn = this.tokenService.getExpirationTime(newToken);
-
-    // Blacklist the old token
-    const oldTokenExpiresIn = this.tokenService.getExpirationTime(token);
-    if (oldTokenExpiresIn > 0) {
-      await this.tokenService.blacklistToken(token, oldTokenExpiresIn);
-    }
-
-    return { token: newToken, expiresIn };
   }
 
   async changePassword(userId: string, dto: ChangePasswordDTO): Promise<void> {

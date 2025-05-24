@@ -122,7 +122,11 @@ export class DigitalFormWorkflowService
     }
   }
 
-  async rejectDigitalForm(requester: Requester, id: string): Promise<void> {
+  async rejectDigitalForm(
+    requester: Requester,
+    id: string,
+    reason: string,
+  ): Promise<void> {
     try {
       const form = await this._getAndValidateForm(id);
 
@@ -147,9 +151,13 @@ export class DigitalFormWorkflowService
         status: RecordStatus.REJECTED,
         updatedById: requester.sub,
         updatedAt: new Date(),
+        // Store rejection reason if needed in a field like 'rejectionReason'
+        // rejectionReason: reason,
       });
 
-      this.logger.log(`Digital form rejected: ${id} by ${requester.sub}`);
+      this.logger.log(
+        `Digital form rejected: ${id} by ${requester.sub}. Reason: ${reason}`,
+      );
     } catch (error) {
       this.logger.error(
         `Error rejecting digital form ${id}: ${error.message}`,

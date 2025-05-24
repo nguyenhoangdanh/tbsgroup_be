@@ -62,7 +62,6 @@ const RegistrationDTOClass = createDtoFromZodSchema(
       positionId: '123e4567-e89b-12d3-a456-426614174004',
       email: 'john.doe@example.com',
       phone: '+84123456789',
-      defaultRoleCode: 'WORKER',
     },
   },
 );
@@ -220,19 +219,19 @@ export class AuthController {
       await this.authService.login(dto);
 
     // Set HTTP-only cookie with the token
-    // res.cookie('accessToken', token, {
-    //   httpOnly: true,
-    //   secure: process.env.NODE_ENV === 'production',
-    //   sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    //   maxAge: expiresIn * 1000, // Convert seconds to milliseconds
-    // });
     res.cookie('accessToken', token, {
       httpOnly: true,
-      secure: true, // Luôn true trên production
-      sameSite: 'none', // Quan trọng cho cross-domain
-      maxAge: expiresIn * 1000,
-      path: '/',
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: expiresIn * 1000, // Convert seconds to milliseconds
     });
+    // res.cookie('accessToken', token, {
+    //   httpOnly: true,
+    //   secure: true, // Luôn true trên production
+    //   sameSite: 'none', // Quan trọng cho cross-domain
+    //   maxAge: expiresIn * 1000,
+    //   path: '/',
+    // });
 
     // Also send token in response for mobile/SPA clients
     return {
@@ -346,13 +345,7 @@ export class AuthController {
       await this.authService.refreshToken(token);
 
     // Set new cookie
-    // res.cookie('accessToken', newToken, {
-    //   httpOnly: true,
-    //   secure: process.env.NODE_ENV === 'production',
-    //   sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    //   maxAge: expiresIn * 1000, // Convert seconds to milliseconds
-    // });
-    res.cookie('accessToken', token, {
+    res.cookie('accessToken', newToken, {
       httpOnly: true,
       secure: true, // Luôn true trên production
       sameSite: 'none', // Quan trọng cho cross-domain
@@ -547,209 +540,3 @@ export class AuthRpcController {
     return { data: result };
   }
 }
-
-// import {
-//   Body,
-//   Controller,
-//   HttpCode,
-//   HttpStatus,
-//   Inject,
-//   Logger,
-//   Post,
-//   Request,
-//   Res,
-//   UseGuards,
-// } from '@nestjs/common';
-// import {
-//   Request as ExpressRequest,
-//   Response as ExpressResponse,
-// } from 'express';
-// import { AppError, ReqWithRequester } from 'src/share';
-// import { RemoteAuthGuard } from 'src/share/guard';
-// import { AUTH_SERVICE, TOKEN_SERVICE } from './auth.di-token';
-// import {
-//   ChangePasswordDTO,
-//   LoginDTO,
-//   RegistrationDTO,
-//   RequestPasswordResetDTO,
-//   ResetPasswordDTO,
-// } from './auth.dto';
-// import { ErrInvalidToken } from './auth.model';
-// import { IAuthService, ITokenService } from './auth.port';
-// import { ApiTags } from '@nestjs/swagger';
-
-// @Controller('auth')
-// @ApiTags('Authentication')
-// export class AuthController {
-//   private readonly logger = new Logger(AuthController.name);
-//   constructor(
-//     @Inject(AUTH_SERVICE) private readonly authService: IAuthService,
-//     @Inject(TOKEN_SERVICE) private readonly tokenService: ITokenService,
-//   ) {}
-
-//   @Post('register')
-//   @HttpCode(HttpStatus.CREATED)
-//   async register(@Body() dto: RegistrationDTO) {
-//     const userId = await this.authService.register(dto);
-//     return {
-//       success: true,
-//       data: { userId },
-//     };
-//   }
-
-//   @Post('login')
-//   @HttpCode(HttpStatus.OK)
-//   async login(
-//     @Res({ passthrough: true }) res: ExpressResponse,
-//     @Body() dto: LoginDTO,
-//   ) {
-//     const { token, expiresIn, requiredResetPassword } =
-//       await this.authService.login(dto);
-
-//     // Set HTTP-only cookie with the token
-//     res.cookie('accessToken', token, {
-//       httpOnly: true,
-//       secure: process.env.NODE_ENV === 'production',
-//       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-//       maxAge: expiresIn * 1000, // Convert seconds to milliseconds
-//     });
-
-//     // Also send token in response for mobile/SPA clients
-//     return {
-//       success: true,
-//       data: {
-//         token,
-//         expiresIn,
-//         requiredResetPassword,
-//       },
-//     };
-//   }
-
-//   @Post('logout')
-//   @UseGuards(RemoteAuthGuard)
-//   @HttpCode(HttpStatus.OK)
-//   async logout(
-//     @Request() req: ReqWithRequester,
-//     @Res({ passthrough: true }) res: ExpressResponse,
-//   ) {
-//     // Extract all possible tokens
-//     const cookieToken = req.cookies?.accessToken;
-//     const headerToken = req.headers.authorization?.split(' ')[1];
-
-//     this.logger.debug(
-//       `Logout - Cookie token exists: ${!!cookieToken}, Auth header exists: ${!!headerToken}`,
-//     );
-
-//     // Log out and invalidate all available tokens
-//     if (cookieToken) {
-//       await this.authService.logout(cookieToken);
-//     }
-
-//     if (headerToken && headerToken !== cookieToken) {
-//       await this.authService.logout(headerToken);
-//     }
-
-//     // Clear cookies
-//     res.clearCookie('accessToken', {
-//       httpOnly: true,
-//       secure: process.env.NODE_ENV === 'production',
-//       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-//     });
-
-//     // For better security, tell browsers to clear Authorization header
-//     // Note: This doesn't affect existing stored tokens in clients
-//     res.setHeader('Clear-Site-Data', '"cookies", "storage"');
-
-//     return { success: true, message: 'Đăng xuất thành công' };
-//   }
-
-//   @Post('refresh')
-//   @HttpCode(HttpStatus.OK)
-//   async refreshToken(
-//     @Res({ passthrough: true }) res: ExpressResponse,
-//     @Request() req: ExpressRequest,
-//   ) {
-//     // Get token from request
-//     const token =
-//       req.cookies?.accessToken || req.headers.authorization?.split(' ')[1];
-
-//     if (!token) {
-//       throw AppError.from(ErrInvalidToken, 401);
-//     }
-
-//     // Refresh token
-//     const { token: newToken, expiresIn } =
-//       await this.authService.refreshToken(token);
-
-//     // Set new cookie
-//     res.cookie('accessToken', newToken, {
-//       httpOnly: true,
-//       secure: process.env.NODE_ENV === 'production',
-//       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-//       maxAge: expiresIn * 1000, // Convert seconds to milliseconds
-//     });
-
-//     return {
-//       success: true,
-//       data: {
-//         token: newToken,
-//         expiresIn,
-//       },
-//     };
-//   }
-
-//   @Post('request-password-reset')
-//   @HttpCode(HttpStatus.OK)
-//   async requestPasswordReset(@Body() dto: RequestPasswordResetDTO) {
-//     const { resetToken, expiryDate, username } =
-//       await this.authService.requestPasswordReset(dto);
-
-//     // In production, you would send this token via email
-//     // For development, return it directly
-//     return {
-//       success: true,
-//       data: {
-//         resetToken,
-//         expiryDate,
-//         username,
-//         // Message to guide user in production
-//         message: 'Đã xác thực thành công!',
-//       },
-//     };
-//   }
-
-//   @Post('reset-password')
-//   @HttpCode(HttpStatus.OK)
-//   async resetPassword(@Body() dto: ResetPasswordDTO) {
-//     await this.authService.resetPassword(dto);
-//     return { success: true };
-//   }
-
-//   @Post('change-password')
-//   @UseGuards(RemoteAuthGuard)
-//   @HttpCode(HttpStatus.OK)
-//   async changePassword(
-//     @Request() req: ReqWithRequester,
-//     @Body() dto: ChangePasswordDTO,
-//   ) {
-//     await this.authService.changePassword(req.requester.sub, dto);
-//     return { success: true };
-//   }
-// }
-
-// /**
-//  * RPC Controller for internal service communication
-//  */
-// @Controller('rpc/auth')
-// export class AuthRpcController {
-//   constructor(
-//     @Inject(AUTH_SERVICE) private readonly authService: IAuthService,
-//   ) {}
-
-//   @Post('introspect')
-//   @HttpCode(HttpStatus.OK)
-//   async introspect(@Body() dto: { token: string }) {
-//     const result = await this.authService.introspectToken(dto.token);
-//     return { data: result };
-//   }
-// }

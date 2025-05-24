@@ -70,7 +70,7 @@ export class RoleService implements IRoleService {
     }
   }
 
-  async updateRole(id: string, dto: RoleDTO, role?: UserRole): Promise<void> {
+  async updateRole(id: string, dto: RoleDTO, role?: string): Promise<void> {
     try {
       // Check if role exists
       const existingRole = await this.roleRepo.get(id);

@@ -96,20 +96,20 @@ export class DigitalFormCoreService
   ): Promise<string> {
     try {
       // Check authorization - only team leaders, line managers, admins can create forms
-      const allowedRoles = [
-        UserRole.TEAM_LEADER,
-        UserRole.LINE_MANAGER,
-        UserRole.ADMIN,
-        UserRole.SUPER_ADMIN,
-      ];
+      // const allowedRoles = [
+      //   UserRole.TEAM_LEADER,
+      //   UserRole.LINE_MANAGER,
+      //   UserRole.ADMIN,
+      //   UserRole.SUPER_ADMIN,
+      // ];
 
-      if (!requester.role) {
-        throw AppError.from(new Error('Cannot found user role'), 404);
-      }
+      // if (!requester.role) {
+      //   throw AppError.from(new Error('Cannot found user role'), 404);
+      // }
 
-      if (!allowedRoles.includes(requester.role)) {
-        throw AppError.from(ErrFormAlreadySubmitted, 403);
-      }
+      // if (!allowedRoles.includes(requester.role)) {
+      //   throw AppError.from(ErrFormAlreadySubmitted, 403);
+      // }
 
       // Lấy thông tin công nhân
       const user = await this.userRepository.get(dto.userId);

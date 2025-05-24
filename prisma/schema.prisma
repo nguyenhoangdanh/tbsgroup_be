@@ -101,8 +101,8 @@ model User {
   phone      String?    @map("phone") @db.VarChar(20)
   status     UserStatus @default(PENDING_ACTIVATION) @map("status")
 
-  roleId String? @map("role_id") @db.Uuid // Vai trò mặc định
-  role   Role?   @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  roleId String @map("role_id") @db.Uuid // Vai trò mặc định
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: SetNull)
 
   // Quan hệ trực tiếp với cấu trúc sản xuất
   factoryId  String? @map("factory_id") @db.Uuid

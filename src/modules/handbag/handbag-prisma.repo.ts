@@ -1,6 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { BagColor as PrismaBagColor, BagColorProcess as PrismaBagColorProcess, HandBag as PrismaHandBag, Prisma } from '@prisma/client';
-import prisma from 'src/share/components/prisma';
+import {
+  BagColor as PrismaBagColor,
+  BagColorProcess as PrismaBagColorProcess,
+  HandBag as PrismaHandBag,
+  Prisma,
+} from '@prisma/client';
+import { PrismaService } from 'src/share/prisma.service';
 import {
   BagColorCondDTO,
   BagColorProcessCondDTO,
@@ -13,6 +18,8 @@ import { IHandBagRepository } from './handbag.port';
 @Injectable()
 export class HandBagPrismaRepository implements IHandBagRepository {
   private readonly logger = new Logger(HandBagPrismaRepository.name);
+
+  constructor(private readonly prisma: PrismaService) {}
 
   // ========== Private Utility Methods ==========
   private _toHandBagModel(data: PrismaHandBag): HandBag {
@@ -47,7 +54,9 @@ export class HandBagPrismaRepository implements IHandBagRepository {
     };
   }
 
-  private _toBagColorProcessModel(data: PrismaBagColorProcess): BagColorProcess {
+  private _toBagColorProcessModel(
+    data: PrismaBagColorProcess,
+  ): BagColorProcess {
     return {
       id: data.id,
       bagColorId: data.bagColorId,
@@ -188,7 +197,7 @@ export class HandBagPrismaRepository implements IHandBagRepository {
   // ========== HandBag Methods ==========
   async getHandBag(id: string): Promise<HandBag | null> {
     try {
-      const data = await prisma.handBag.findUnique({
+      const data = await this.prisma.handBag.findUnique({
         where: { id },
       });
 
@@ -204,7 +213,7 @@ export class HandBagPrismaRepository implements IHandBagRepository {
 
   async findHandBagByCode(code: string): Promise<HandBag | null> {
     try {
-      const data = await prisma.handBag.findFirst({
+      const data = await this.prisma.handBag.findFirst({
         where: { code: { equals: code, mode: 'insensitive' } },
       });
 
@@ -220,7 +229,7 @@ export class HandBagPrismaRepository implements IHandBagRepository {
 
   async findHandBagByCond(cond: HandBagCondDTO): Promise<HandBag | null> {
     try {
-      const data = await prisma.handBag.findFirst({
+      const data = await this.prisma.handBag.findFirst({
         where: this._handBagConditionsToWhereClause(cond),
       });
 
@@ -252,15 +261,15 @@ export class HandBagPrismaRepository implements IHandBagRepository {
 
       // Run count and data queries in parallel for efficiency
       const [total, data] = await Promise.all([
-        prisma.handBag.count({ where: whereClause }),
-        prisma.handBag.findMany({
+        this.prisma.handBag.count({ where: whereClause }),
+        this.prisma.handBag.findMany({
           where: whereClause,
           orderBy: { [sortBy]: sortOrder },
           skip: (page - 1) * limit,
           take: limit,
           include: {
             groupRates: true,
-          }
+          },
         }),
       ]);
 
@@ -279,7 +288,7 @@ export class HandBagPrismaRepository implements IHandBagRepository {
 
   async insertHandBag(handBag: HandBag): Promise<void> {
     try {
-      await prisma.handBag.create({
+      await this.prisma.handBag.create({
         data: {
           id: handBag.id,
           code: handBag.code,
@@ -308,7 +317,8 @@ export class HandBagPrismaRepository implements IHandBagRepository {
       const updateData: Prisma.HandBagUpdateInput = {};
 
       if (dto.name !== undefined) updateData.name = dto.name;
-      if (dto.description !== undefined) updateData.description = dto.description;
+      if (dto.description !== undefined)
+        updateData.description = dto.description;
       if (dto.imageUrl !== undefined) updateData.imageUrl = dto.imageUrl;
       if (dto.active !== undefined) updateData.active = dto.active;
       if (dto.category !== undefined) updateData.category = dto.category;
@@ -316,7 +326,7 @@ export class HandBagPrismaRepository implements IHandBagRepository {
       if (dto.material !== undefined) updateData.material = dto.material;
       if (dto.weight !== undefined) updateData.weight = dto.weight;
 
-      await prisma.handBag.update({
+      await this.prisma.handBag.update({
         where: { id },
         data: updateData,
       });
@@ -331,7 +341,7 @@ export class HandBagPrismaRepository implements IHandBagRepository {
 
   async deleteHandBag(id: string): Promise<void> {
     try {
-      await prisma.handBag.delete({
+      await this.prisma.handBag.delete({
         where: { id },
       });
     } catch (error) {
@@ -345,7 +355,7 @@ export class HandBagPrismaRepository implements IHandBagRepository {
 
   async hasProductionRecords(handBagId: string): Promise<boolean> {
     try {
-      const count = await prisma.productionRecord.count({
+      const count = await this.prisma.productionRecord.count({
         where: { handBagId },
       });
       return count > 0;
@@ -361,7 +371,7 @@ export class HandBagPrismaRepository implements IHandBagRepository {
   // ========== BagColor Methods ==========
   async getBagColor(id: string): Promise<BagColor | null> {
     try {
-      const data = await prisma.bagColor.findUnique({
+      const data = await this.prisma.bagColor.findUnique({
         where: { id },
       });
 
@@ -375,9 +385,12 @@ export class HandBagPrismaRepository implements IHandBagRepository {
     }
   }
 
-  async findBagColorByCode(handBagId: string, colorCode: string): Promise<BagColor | null> {
+  async findBagColorByCode(
+    handBagId: string,
+    colorCode: string,
+  ): Promise<BagColor | null> {
     try {
-      const data = await prisma.bagColor.findFirst({
+      const data = await this.prisma.bagColor.findFirst({
         where: {
           handBagId,
           colorCode: { equals: colorCode, mode: 'insensitive' },
@@ -412,8 +425,8 @@ export class HandBagPrismaRepository implements IHandBagRepository {
 
       // Run count and data queries in parallel for efficiency
       const [total, data] = await Promise.all([
-        prisma.bagColor.count({ where: whereClause }),
-        prisma.bagColor.findMany({
+        this.prisma.bagColor.count({ where: whereClause }),
+        this.prisma.bagColor.findMany({
           where: whereClause,
           orderBy: { [sortBy]: sortOrder },
           skip: (page - 1) * limit,
@@ -436,7 +449,7 @@ export class HandBagPrismaRepository implements IHandBagRepository {
 
   async insertBagColor(bagColor: BagColor): Promise<void> {
     try {
-      await prisma.bagColor.create({
+      await this.prisma.bagColor.create({
         data: {
           id: bagColor.id,
           handBagId: bagColor.handBagId,
@@ -468,7 +481,7 @@ export class HandBagPrismaRepository implements IHandBagRepository {
       if (dto.imageUrl !== undefined) updateData.imageUrl = dto.imageUrl;
       if (dto.notes !== undefined) updateData.notes = dto.notes;
 
-      await prisma.bagColor.update({
+      await this.prisma.bagColor.update({
         where: { id },
         data: updateData,
       });
@@ -483,7 +496,7 @@ export class HandBagPrismaRepository implements IHandBagRepository {
 
   async deleteBagColor(id: string): Promise<void> {
     try {
-      await prisma.bagColor.delete({
+      await this.prisma.bagColor.delete({
         where: { id },
       });
     } catch (error) {
@@ -497,7 +510,7 @@ export class HandBagPrismaRepository implements IHandBagRepository {
 
   async hasProductionRecordsForColor(bagColorId: string): Promise<boolean> {
     try {
-      const count = await prisma.productionRecord.count({
+      const count = await this.prisma.productionRecord.count({
         where: { bagColorId },
       });
       return count > 0;
@@ -506,14 +519,16 @@ export class HandBagPrismaRepository implements IHandBagRepository {
         `Error checking if bag color ${bagColorId} has production records: ${error.message}`,
         error.stack,
       );
-      throw new Error(`Failed to check production records for color: ${error.message}`);
+      throw new Error(
+        `Failed to check production records for color: ${error.message}`,
+      );
     }
   }
 
   // ========== BagColorProcess Methods ==========
   async getBagColorProcess(id: string): Promise<BagColorProcess | null> {
     try {
-      const data = await prisma.bagColorProcess.findUnique({
+      const data = await this.prisma.bagColorProcess.findUnique({
         where: { id },
       });
 
@@ -532,7 +547,7 @@ export class HandBagPrismaRepository implements IHandBagRepository {
     bagProcessId: string,
   ): Promise<BagColorProcess | null> {
     try {
-      const data = await prisma.bagColorProcess.findFirst({
+      const data = await this.prisma.bagColorProcess.findFirst({
         where: {
           bagColorId,
           bagProcessId,
@@ -563,12 +578,13 @@ export class HandBagPrismaRepository implements IHandBagRepository {
       const sortBy = pagination.sortBy || 'createdAt';
       const sortOrder = pagination.sortOrder || 'desc';
 
-      const whereClause = this._bagColorProcessConditionsToWhereClause(conditions);
+      const whereClause =
+        this._bagColorProcessConditionsToWhereClause(conditions);
 
       // Run count and data queries in parallel for efficiency
       const [total, data] = await Promise.all([
-        prisma.bagColorProcess.count({ where: whereClause }),
-        prisma.bagColorProcess.findMany({
+        this.prisma.bagColorProcess.count({ where: whereClause }),
+        this.prisma.bagColorProcess.findMany({
           where: whereClause,
           orderBy: { [sortBy]: sortOrder },
           skip: (page - 1) * limit,
@@ -595,7 +611,7 @@ export class HandBagPrismaRepository implements IHandBagRepository {
 
   async insertBagColorProcess(bagColorProcess: BagColorProcess): Promise<void> {
     try {
-      await prisma.bagColorProcess.create({
+      await this.prisma.bagColorProcess.create({
         data: {
           id: bagColorProcess.id,
           bagColorId: bagColorProcess.bagColorId,
@@ -618,19 +634,27 @@ export class HandBagPrismaRepository implements IHandBagRepository {
     }
   }
 
-  async updateBagColorProcess(id: string, dto: Partial<BagColorProcess>): Promise<void> {
+  async updateBagColorProcess(
+    id: string,
+    dto: Partial<BagColorProcess>,
+  ): Promise<void> {
     try {
       // Filter out undefined values to avoid unintended updates
       const updateData: Prisma.BagColorProcessUpdateInput = {};
 
-      if (dto.standardOutput !== undefined) updateData.standardOutput = dto.standardOutput;
+      if (dto.standardOutput !== undefined)
+        updateData.standardOutput = dto.standardOutput;
       if (dto.difficulty !== undefined) updateData.difficulty = dto.difficulty;
-      if (dto.timeEstimate !== undefined) updateData.timeEstimate = dto.timeEstimate;
-      if (dto.materialUsage !== undefined) updateData.materialUsage = dto.materialUsage;
-      if (dto.qualityNotes !== undefined) updateData.qualityNotes = dto.qualityNotes;
-      if (dto.specialTools !== undefined) updateData.specialTools = dto.specialTools;
+      if (dto.timeEstimate !== undefined)
+        updateData.timeEstimate = dto.timeEstimate;
+      if (dto.materialUsage !== undefined)
+        updateData.materialUsage = dto.materialUsage;
+      if (dto.qualityNotes !== undefined)
+        updateData.qualityNotes = dto.qualityNotes;
+      if (dto.specialTools !== undefined)
+        updateData.specialTools = dto.specialTools;
 
-      await prisma.bagColorProcess.update({
+      await this.prisma.bagColorProcess.update({
         where: { id },
         data: updateData,
       });
@@ -645,7 +669,7 @@ export class HandBagPrismaRepository implements IHandBagRepository {
 
   async deleteBagColorProcess(id: string): Promise<void> {
     try {
-      await prisma.bagColorProcess.delete({
+      await this.prisma.bagColorProcess.delete({
         where: { id },
       });
     } catch (error) {

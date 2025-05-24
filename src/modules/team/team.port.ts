@@ -1,15 +1,11 @@
-import { Requester, Paginated, PagingDTO } from 'src/share';
-import {
-  TeamCondDTO,
-  TeamCreateDTO,
-  TeamLeaderDTO,
-  TeamUpdateDTO,
-} from './team.dto';
+import { Requester } from 'src/share';
+import { TeamCreateDTO, TeamLeaderDTO, TeamUpdateDTO } from './team.dto';
 import { Team } from './team.model';
 import { ICrudRepository, ICrudService } from 'src/CrudModule/crud.interface';
 
 // Interface for team repository
-export interface ITeamRepository extends ICrudRepository<Team, TeamCreateDTO, TeamUpdateDTO> {
+export interface ITeamRepository
+  extends ICrudRepository<Team, TeamCreateDTO, TeamUpdateDTO> {
   // Query
   findByCode(code: string): Promise<Team | null>;
   listByLineId(lineId: string): Promise<Team[]>;
@@ -23,12 +19,14 @@ export interface ITeamRepository extends ICrudRepository<Team, TeamCreateDTO, Te
     isPrimary: boolean,
     endDate?: Date,
   ): Promise<void>;
-  getLeaders(teamId: string): Promise<{
-    userId: string;
-    isPrimary: boolean;
-    startDate: Date;
-    endDate: Date | null;
-  }[]>;
+  getLeaders(teamId: string): Promise<
+    {
+      userId: string;
+      isPrimary: boolean;
+      startDate: Date;
+      endDate: Date | null;
+    }[]
+  >;
 
   // Validation methods
   hasGroups(teamId: string): Promise<boolean>;
@@ -39,7 +37,8 @@ export interface ITeamRepository extends ICrudRepository<Team, TeamCreateDTO, Te
 }
 
 // Interface for team service
-export interface ITeamService extends ICrudService<Team, TeamCreateDTO, TeamUpdateDTO> {
+export interface ITeamService
+  extends ICrudService<Team, TeamCreateDTO, TeamUpdateDTO> {
   // Team leader methods
   addTeamLeader(
     requester: Requester,
@@ -58,22 +57,24 @@ export interface ITeamService extends ICrudService<Team, TeamCreateDTO, TeamUpda
     isPrimary: boolean,
     endDate?: Date,
   ): Promise<void>;
-  getTeamLeaders(teamId: string): Promise<{
-    userId: string;
-    isPrimary: boolean;
-    startDate: Date;
-    endDate: Date | null;
-    user?: {
-      id: string;
-      fullName: string;
-      avatar?: string | null;
-    };
-  }[]>;
+  getTeamLeaders(teamId: string): Promise<
+    {
+      userId: string;
+      isPrimary: boolean;
+      startDate: Date;
+      endDate: Date | null;
+      user?: {
+        id: string;
+        fullName: string;
+        avatar?: string | null;
+      };
+    }[]
+  >;
 
   // Access validation
   canManageTeam(userId: string, teamId: string): Promise<boolean>;
   getUserAccessibleTeams(userId: string): Promise<string[]>;
-  
+
   // Query methods
   findByLineId(lineId: string): Promise<Team[]>;
 

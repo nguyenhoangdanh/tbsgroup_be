@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ShareModule } from 'src/share/module';
-import { HandBagHttpController, HandBagRpcHttpController } from './handbag-http.controller';
+import {
+  HandBagHttpController,
+  HandBagRpcHttpController,
+} from './handbag-http.controller';
 import { HANDBAG_REPOSITORY, HANDBAG_SERVICE } from './handbag.di-token';
 import { HandBagPrismaRepository } from './handbag-prisma.repo';
 import { HandBagService } from './handbag.service';

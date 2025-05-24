@@ -11,21 +11,21 @@ export interface CrudModuleOptions<T, C, U, F = any> {
   // Basic module info
   moduleName: string;
   path: string;
-  
+
   // Class definitions
   modelType: Type<T>;
   createDtoType: Type<C>;
   updateDtoType: Type<U>;
   filterDtoType?: Type<F>;
-  
+
   // Custom implementations
   serviceClass: Type<BaseCrudService<T, C, U>>;
   repositoryClass: Type<BasePrismaRepository<T, C, U>>;
-  
+
   // DI tokens
   serviceToken: string | symbol;
   repositoryToken: string | symbol;
-  
+
   // Other options
   imports?: any[];
   providers?: Provider[];
@@ -36,7 +36,7 @@ export interface CrudModuleOptions<T, C, U, F = any> {
  * Create a dynamic CRUD module
  */
 export function createCrudModule<T, C, U, F = any>(
-  options: CrudModuleOptions<T, C, U, F>
+  options: CrudModuleOptions<T, C, U, F>,
 ): DynamicModule {
   const {
     moduleName,
@@ -59,7 +59,7 @@ export function createCrudModule<T, C, U, F = any>(
     service: serviceToken,
     modelName: moduleName,
   });
-  
+
   // Add Controller decorator metadata manually
   Controller(path)(CrudControllerClass);
 
@@ -88,18 +88,14 @@ export function createCrudModule<T, C, U, F = any>(
         createDto: createDtoType,
         updateDto: updateDtoType,
         conditionDto: filterDtoType,
-        path: path
-      }
+        path: path,
+      },
     },
     ...providers,
   ];
-  
+
   // Define exports
-  const moduleExports = [
-    serviceToken,
-    repositoryToken,
-    ...exports,
-  ];
+  const moduleExports = [serviceToken, repositoryToken, ...exports];
 
   // Create the module
   return {

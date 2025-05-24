@@ -7,6 +7,7 @@ import {
   PaginationDTO,
   DigitalFormUpdateDTO,
   DigitalFormSubmitDTO,
+  UpdateFormEntryDTO,
 } from './digital-form.dto';
 import {
   DigitalForm,
@@ -109,6 +110,15 @@ export class DigitalFormService implements IDigitalFormService {
     return this.entryService.addFormEntry(requester, formId, dto);
   }
 
+  updateFormEntry(
+    requester: Requester,
+    formId: string,
+    entryId: string,
+    dto: UpdateFormEntryDTO,
+  ): Promise<void> {
+    return this.entryService.updateEntry(requester, formId, entryId, dto);
+  }
+
   deleteFormEntry(
     requester: Requester,
     formId: string,
@@ -130,12 +140,15 @@ export class DigitalFormService implements IDigitalFormService {
     return this.workflowService.approveDigitalForm(requester, id);
   }
 
-  rejectDigitalForm(requester: Requester, id: string): Promise<void> {
-    return this.workflowService.rejectDigitalForm(requester, id);
+  rejectDigitalForm(
+    requester: Requester,
+    id: string,
+    reason: string,
+  ): Promise<void> {
+    return this.workflowService.rejectDigitalForm(requester, id, reason);
   }
 
   // Report operations
-
   getProductionReportByFactory(
     factoryId: string,
     dateFrom: string,
@@ -246,5 +259,129 @@ export class DigitalFormService implements IDigitalFormService {
       parameters,
       format,
     );
+  }
+
+  // Required method implementations from IDigitalFormService
+  generateTeamReport(
+    teamId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<TeamProductionReport> {
+    // Convert dates to strings for the report service
+    const dateFrom = startDate.toISOString().split('T')[0];
+    const dateTo = endDate.toISOString().split('T')[0];
+
+    return this.reportService.getProductionReportByTeam(
+      teamId,
+      dateFrom,
+      dateTo,
+      {
+        includeGroups: true,
+        includeWorkers: true,
+        groupByBag: true,
+        groupByProcess: true,
+      },
+    );
+  }
+
+  generateGroupReport(
+    groupId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<GroupProductionReport> {
+    // Convert dates to strings for the report service
+    const dateFrom = startDate.toISOString().split('T')[0];
+    const dateTo = endDate.toISOString().split('T')[0];
+
+    return this.reportService.getProductionReportByGroup(
+      groupId,
+      dateFrom,
+      dateTo,
+      {
+        includeWorkers: true,
+        detailedAttendance: true,
+        groupByBag: true,
+        groupByProcess: true,
+      },
+    );
+  }
+
+  generateLineReport(
+    lineId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<LineProductionReport> {
+    // Convert dates to strings for the report service
+    const dateFrom = startDate.toISOString().split('T')[0];
+    const dateTo = endDate.toISOString().split('T')[0];
+
+    return this.reportService.getProductionReportByLine(
+      lineId,
+      dateFrom,
+      dateTo,
+      {
+        includeTeams: true,
+        includeGroups: true,
+        groupByBag: true,
+        groupByProcess: true,
+      },
+    );
+  }
+
+  generateFactoryReport(
+    factoryId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<FactoryProductionReport> {
+    // Convert dates to strings for the report service
+    const dateFrom = startDate.toISOString().split('T')[0];
+    const dateTo = endDate.toISOString().split('T')[0];
+
+    return this.reportService.getProductionReportByFactory(
+      factoryId,
+      dateFrom,
+      dateTo,
+      {
+        includeLines: true,
+        includeTeams: true,
+        includeGroups: true,
+        groupByBag: true,
+        groupByProcess: true,
+      },
+    );
+  }
+
+  generateComparisonReport(params: {
+    factoryId?: string;
+    lineIds?: string[];
+    teamIds?: string[];
+    groupIds?: string[];
+    startDate: Date;
+    endDate: Date;
+  }): Promise<ProductionComparisonReport> {
+    // Convert dates to strings for the report service
+    const dateFrom = params.startDate.toISOString().split('T')[0];
+    const dateTo = params.endDate.toISOString().split('T')[0];
+
+    // This is a simplified implementation, you may need to adapt it based on your actual requirements
+    if (params.lineIds && params.lineIds.length > 0) {
+      return this.reportService.getProductionComparisonReport(
+        params.lineIds[0],
+        params.teamIds || [],
+        'team',
+        dateFrom,
+        dateTo,
+        {
+          includeHandBags: true,
+          includeProcesses: true,
+          includeTimeSeries: true,
+        },
+      );
+    } else if (params.factoryId) {
+      // If no lineIds provided but factoryId exists, you might need to handle this differently
+      throw new Error('Comparison report requires lineIds to be provided');
+    } else {
+      throw new Error('Insufficient parameters for comparison report');
+    }
   }
 }

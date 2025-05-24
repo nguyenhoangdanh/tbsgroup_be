@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Logger,
   UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { AppError } from '../../share/app-error';
@@ -52,7 +53,22 @@ export class AppErrorFilter implements ExceptionFilter {
         return this.handleAppError(exception, response);
       }
 
-      // 3. Xử lý HttpException từ NestJS
+      // 3. Xử lý BadRequestException từ ZodValidationPipe
+      if (exception instanceof BadRequestException) {
+        const status = exception.getStatus();
+        const exceptionResponse = exception.getResponse() as any;
+
+        return response.status(status).json({
+          success: false,
+          statusCode: status,
+          message: exceptionResponse.message || 'Validation failed',
+          errors: exceptionResponse.errors || [], // Return detailed validation errors
+          timestamp: new Date().toISOString(),
+          path: request.url,
+        });
+      }
+
+      // 4. Xử lý HttpException từ NestJS
       if (exception instanceof HttpException) {
         const status = exception.getStatus();
         const exceptionResponse = exception.getResponse();
@@ -69,7 +85,7 @@ export class AppErrorFilter implements ExceptionFilter {
         });
       }
 
-      // 4. Xử lý các lỗi khác
+      // 5. Xử lý các lỗi khác
       const status = HttpStatus.INTERNAL_SERVER_ERROR;
       return response.status(status).json({
         success: false,

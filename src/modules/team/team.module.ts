@@ -6,72 +6,27 @@ import { TeamService } from './team.service';
 import { TEAM_REPOSITORY, TEAM_SERVICE } from './team.di-token';
 import { LineModule } from '../line/line.module';
 import { UserModule } from '../user/user.module';
-import { createCrudModule } from 'src/CrudModule/crud.module';
-import { Team } from './team.model';
-import { TeamCreateDTO, TeamUpdateDTO, TeamCondDTO } from './team.dto';
 import { CRUD_OPTIONS } from 'src/CrudModule/crud.decorator';
 import { TeamCrudController } from './team-http.controller';
-
-// Define the endpoints configuration
-const crudEndpoints = {
-  getAll: true,
-  getOne: true,
-  create: true,
-  update: true,
-  delete: true
-};
-
-// // Create the CRUD module with additional providers
-// const TeamCrudModule = createCrudModule({
-//   moduleName: 'Team',
-//   path: 'teams',
-//   modelType: Team,
-//   createDtoType: TeamCreateDTO,
-//   updateDtoType: TeamUpdateDTO,
-//   filterDtoType: TeamCondDTO,
-//   serviceClass: TeamService,
-//   repositoryClass: TeamPrismaRepository,
-//   serviceToken: TEAM_SERVICE,
-//   repositoryToken: TEAM_REPOSITORY,
-//   imports: [ShareModule, LineModule, UserModule],
-//   providers: [
-//     {
-//       provide: CRUD_OPTIONS,
-//       useValue: {
-//         endpoints: crudEndpoints,
-//         model: Team,
-//         createDto: TeamCreateDTO,
-//         updateDto: TeamUpdateDTO,
-//         conditionDto: TeamCondDTO,
-//         path: 'teams'
-//       }
-//     }
-//   ]
-// });
 
 @Module({
   imports: [
     ShareModule,
-    LineModule,
+    LineModule, // Make sure LineModule is properly imported
     UserModule,
   ],
-  controllers: [
-    TeamRpcHttpController,
-    TeamCrudController
-  ],
-  // Add the service provider directly to the module
+  controllers: [TeamRpcHttpController, TeamCrudController],
   providers: [
     {
       provide: TEAM_SERVICE,
-      useClass: TeamService
+      useClass: TeamService,
     },
     {
       provide: TEAM_REPOSITORY,
-      useClass: TeamPrismaRepository
+      useClass: TeamPrismaRepository,
     },
     {
-      // Add this provider for the CRUD_OPTIONS
-      provide: CRUD_OPTIONS, 
+      provide: CRUD_OPTIONS,
       useValue: {
         endpoints: {
           getAll: true,
@@ -80,13 +35,13 @@ const crudEndpoints = {
           update: true,
           delete: true,
         },
-        model: Team,
-        createDto: TeamCreateDTO,
-        updateDto: TeamUpdateDTO,
-        conditionDto: TeamCondDTO,
-        path: 'teams'
-      }
-    }
+        model: 'Team', // Change to string to match the pattern in other modules
+        createDto: 'TeamCreateDTO', // Change to string
+        updateDto: 'TeamUpdateDTO', // Change to string
+        conditionDto: 'TeamCondDTO', // Change to string
+        path: 'teams',
+      },
+    },
   ],
   exports: [TEAM_SERVICE, TEAM_REPOSITORY],
 })

@@ -25,6 +25,9 @@ CREATE TYPE "ProductionIssueType" AS ENUM ('ABSENT', 'LATE', 'WAITING_MATERIALS'
 -- CreateEnum
 CREATE TYPE "DepartmentType" AS ENUM ('HEAD_OFFICE', 'FACTORY_OFFICE');
 
+-- CreateEnum
+CREATE TYPE "PermissionType" AS ENUM ('PAGE_ACCESS', 'FEATURE_ACCESS', 'DATA_ACCESS');
+
 -- CreateTable
 CREATE TABLE "users" (
     "id" UUID NOT NULL,
@@ -78,6 +81,33 @@ CREATE TABLE "roles" (
     "updated_at" TIMESTAMP(0) NOT NULL,
 
     CONSTRAINT "roles_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "permissions" (
+    "id" UUID NOT NULL,
+    "code" VARCHAR(100) NOT NULL,
+    "name" VARCHAR(100) NOT NULL,
+    "description" TEXT,
+    "type" "PermissionType" NOT NULL DEFAULT 'PAGE_ACCESS',
+    "module" VARCHAR(50),
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "created_at" TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(0) NOT NULL,
+
+    CONSTRAINT "permissions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "role_permissions" (
+    "role_id" UUID NOT NULL,
+    "permission_id" UUID NOT NULL,
+    "can_grant" BOOLEAN NOT NULL DEFAULT false,
+    "grant_condition" TEXT,
+    "created_at" TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(0) NOT NULL,
+
+    CONSTRAINT "role_permissions_pkey" PRIMARY KEY ("role_id","permission_id")
 );
 
 -- CreateTable
@@ -293,7 +323,7 @@ CREATE TABLE "bag_processes" (
     "description" VARCHAR(255),
     "order_index" INTEGER NOT NULL DEFAULT 0,
     "process_type" VARCHAR(50),
-    "standard_output" INTEGER NOT NULL DEFAULT 0,
+    "standard_output" DOUBLE PRECISION NOT NULL DEFAULT 0,
     "cycle_duration" INTEGER DEFAULT 0,
     "machine_type" VARCHAR(100),
     "created_at" TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -464,9 +494,11 @@ CREATE TABLE "production_form_entries" (
     "hand_bag_id" UUID NOT NULL,
     "bag_color_id" UUID NOT NULL,
     "process_id" UUID NOT NULL,
+    "planed_output" INTEGER NOT NULL DEFAULT 0,
     "hourly_data" JSONB NOT NULL DEFAULT '{}',
     "total_output" INTEGER NOT NULL DEFAULT 0,
     "attendance_status" "AttendanceStatus" NOT NULL DEFAULT 'PRESENT',
+    "shift_type" "ShiftType" NOT NULL DEFAULT 'REGULAR',
     "check_in_time" TIMESTAMP(0),
     "check_out_time" TIMESTAMP(0),
     "attendance_note" VARCHAR(255),
@@ -536,7 +568,11 @@ CREATE TABLE "digital_production_forms" (
     "description" TEXT,
     "date" DATE NOT NULL,
     "shift_type" "ShiftType" NOT NULL,
+    "factory_id" UUID NOT NULL,
     "line_id" UUID NOT NULL,
+    "team_id" UUID NOT NULL,
+    "group_id" UUID NOT NULL,
+    "user_id" UUID NOT NULL,
     "status" "RecordStatus" NOT NULL DEFAULT 'DRAFT',
     "created_by_id" UUID NOT NULL,
     "created_at" TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -746,6 +782,24 @@ CREATE INDEX "roles_level_idx" ON "roles"("level");
 
 -- CreateIndex
 CREATE INDEX "roles_is_system_idx" ON "roles"("is_system");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "permissions_code_key" ON "permissions"("code");
+
+-- CreateIndex
+CREATE INDEX "permissions_type_idx" ON "permissions"("type");
+
+-- CreateIndex
+CREATE INDEX "permissions_module_idx" ON "permissions"("module");
+
+-- CreateIndex
+CREATE INDEX "permissions_is_active_idx" ON "permissions"("is_active");
+
+-- CreateIndex
+CREATE INDEX "role_permissions_role_id_idx" ON "role_permissions"("role_id");
+
+-- CreateIndex
+CREATE INDEX "role_permissions_permission_id_idx" ON "role_permissions"("permission_id");
 
 -- CreateIndex
 CREATE INDEX "idx_factory_manager_factory" ON "factory_managers"("factory_id");
@@ -1084,6 +1138,12 @@ ALTER TABLE "user_role_assignments" ADD CONSTRAINT "user_role_assignments_user_i
 ALTER TABLE "user_role_assignments" ADD CONSTRAINT "user_role_assignments_role_id_fkey" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_role_id_fkey" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_permission_id_fkey" FOREIGN KEY ("permission_id") REFERENCES "permissions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "factory_managers" ADD CONSTRAINT "factory_managers_factory_id_fkey" FOREIGN KEY ("factory_id") REFERENCES "factories"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1234,7 +1294,16 @@ ALTER TABLE "production_transfer_history" ADD CONSTRAINT "production_transfer_hi
 ALTER TABLE "production_hourly_data" ADD CONSTRAINT "production_hourly_data_production_record_id_fkey" FOREIGN KEY ("production_record_id") REFERENCES "production_records"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "digital_production_forms" ADD CONSTRAINT "digital_production_forms_factory_id_fkey" FOREIGN KEY ("factory_id") REFERENCES "factories"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "digital_production_forms" ADD CONSTRAINT "digital_production_forms_line_id_fkey" FOREIGN KEY ("line_id") REFERENCES "lines"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "digital_production_forms" ADD CONSTRAINT "digital_production_forms_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "digital_production_forms" ADD CONSTRAINT "digital_production_forms_group_id_fkey" FOREIGN KEY ("group_id") REFERENCES "groups"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "digital_production_forms" ADD CONSTRAINT "digital_production_forms_created_by_id_fkey" FOREIGN KEY ("created_by_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

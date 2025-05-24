@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Line as PrismaLine, Prisma } from '@prisma/client';
-import prisma from 'src/share/components/prisma';
-import { AppError, Paginated, PagingDTO } from 'src/share';
+import { PrismaService } from 'src/share/prisma.service';
+import { AppError } from 'src/share';
 import { LineCondDTO, LineManagerDTO } from './line.dto';
 import { Line } from './line.model';
 import { BasePrismaRepository } from 'src/CrudModule/base-prisma.repository';
@@ -9,12 +9,20 @@ import { LineCreateDTO, LineUpdateDTO } from './line.dto';
 import { UserRole } from 'src/share';
 
 @Injectable()
-export class LinePrismaRepository extends BasePrismaRepository<Line, LineCreateDTO, LineUpdateDTO> {
-  constructor() {
+export class LinePrismaRepository extends BasePrismaRepository<
+  Line,
+  LineCreateDTO,
+  LineUpdateDTO
+> {
+  // Change from private to protected
+  protected readonly logger = new Logger(LinePrismaRepository.name);
+
+  constructor(private readonly prisma: PrismaService) {
+    // Using a string literal 'Line' here, not the Line type
     super('Line', prisma.line);
   }
 
-  // Implement abstract methods from BasePrismaRepository
+  // Chuyển đổi entity Prisma thành model domain
   protected _toModel(data: PrismaLine): Line {
     return {
       id: data.id,
@@ -28,6 +36,7 @@ export class LinePrismaRepository extends BasePrismaRepository<Line, LineCreateD
     };
   }
 
+  // Chuyển đổi điều kiện lọc thành where clause Prisma
   protected _conditionsToWhereClause(
     conditions: LineCondDTO,
   ): Prisma.LineWhereInput {
@@ -72,120 +81,82 @@ export class LinePrismaRepository extends BasePrismaRepository<Line, LineCreateD
     return whereClause;
   }
 
-  // Custom methods for Line Repository
+  // Tìm line theo mã code
   async findByCode(code: string): Promise<Line | null> {
     try {
-      const data = await prisma.line.findFirst({
+      const data = await this.prisma.line.findFirst({
         where: { code: { equals: code, mode: 'insensitive' } },
       });
 
       return data ? this._toModel(data) : null;
     } catch (error) {
-      this.logger.error(
-        `Error finding line by code ${code}: ${error.message}`,
-        error.stack,
-      );
-      throw AppError.from(
-        new Error(`Failed to find line by code: ${error.message}`),
-        500
-      );
+      this.handleRepositoryError(error, `Lỗi khi tìm line theo code ${code}`);
     }
   }
 
+  // Liệt kê line theo factory ID
   async listByFactoryId(factoryId: string): Promise<Line[]> {
     try {
-      const data = await prisma.line.findMany({
+      const data = await this.prisma.line.findMany({
         where: { factoryId },
         orderBy: { name: 'asc' },
       });
 
-      return data.map((item: any) => this._toModel(item));
+      return data.map((item) => this._toModel(item));
     } catch (error) {
-      this.logger.error(
-        `Error listing lines by factory ID: ${error.message}`,
-        error.stack,
-      );
-      throw AppError.from(
-        new Error(`Failed to list lines by factory ID: ${error.message}`),
-        500
+      this.handleRepositoryError(
+        error,
+        `Lỗi khi liệt kê line theo factory ID ${factoryId}`,
       );
     }
   }
 
-  // Update timestamp only
-  async updateTimestamp(id: string): Promise<void> {
+  // Thêm manager cho line
+  async addManager(lineId: string, managerDTO: LineManagerDTO): Promise<void> {
     try {
-      await prisma.line.update({
-        where: { id },
-        data: {
-          updatedAt: new Date()
-        },
-      });
-    } catch (error) {
-      this.logger.error(
-        `Error updating line timestamp ${id}: ${error.message}`,
-        error.stack,
-      );
-      throw AppError.from(
-        new Error(`Failed to update line timestamp: ${error.message}`),
-        500
-      );
-    }
-  }
+      await this.prisma.$transaction(async (tx) => {
+        // Nếu đây là primary manager, cập nhật tất cả manager hiện tại không còn là primary
+        if (managerDTO.isPrimary) {
+          await tx.lineManager.updateMany({
+            where: { lineId, isPrimary: true },
+            data: { isPrimary: false },
+          });
+        }
 
-  // Line manager methods
-  async addManager(
-    lineId: string,
-    managerDTO: LineManagerDTO,
-  ): Promise<void> {
-    try {
-      // If this is a primary manager, update all existing managers to not be primary
-      if (managerDTO.isPrimary) {
-        await prisma.lineManager.updateMany({
-          where: { lineId, isPrimary: true },
-          data: { isPrimary: false },
+        // Thêm manager mới
+        await tx.lineManager.create({
+          data: {
+            lineId,
+            userId: managerDTO.userId,
+            isPrimary: managerDTO.isPrimary,
+            startDate: managerDTO.startDate,
+            endDate: managerDTO.endDate,
+          },
         });
-      }
-
-      // Add the new manager
-      await prisma.lineManager.create({
-        data: {
-          lineId,
-          userId: managerDTO.userId,
-          isPrimary: managerDTO.isPrimary,
-          startDate: managerDTO.startDate,
-          endDate: managerDTO.endDate,
-        },
       });
     } catch (error) {
-      this.logger.error(
-        `Error adding manager to line ${lineId}: ${error.message}`,
-        error.stack,
-      );
-      throw AppError.from(
-        new Error(`Failed to add line manager: ${error.message}`),
-        500
+      this.handleRepositoryError(
+        error,
+        `Lỗi khi thêm manager cho line ${lineId}`,
       );
     }
   }
 
+  // Xóa manager khỏi line
   async removeManager(lineId: string, userId: string): Promise<void> {
     try {
-      await prisma.lineManager.deleteMany({
+      await this.prisma.lineManager.deleteMany({
         where: { lineId, userId },
       });
     } catch (error) {
-      this.logger.error(
-        `Error removing manager from line ${lineId}: ${error.message}`,
-        error.stack,
-      );
-      throw AppError.from(
-        new Error(`Failed to remove line manager: ${error.message}`),
-        500
+      this.handleRepositoryError(
+        error,
+        `Lỗi khi xóa manager khỏi line ${lineId}`,
       );
     }
   }
 
+  // Cập nhật thông tin manager
   async updateManager(
     lineId: string,
     userId: string,
@@ -193,34 +164,33 @@ export class LinePrismaRepository extends BasePrismaRepository<Line, LineCreateD
     endDate?: Date,
   ): Promise<void> {
     try {
-      // If setting as primary, update all existing primary managers
-      if (isPrimary) {
-        await prisma.lineManager.updateMany({
-          where: { lineId, isPrimary: true },
-          data: { isPrimary: false },
-        });
-      }
+      await this.prisma.$transaction(async (tx) => {
+        // Nếu đặt làm primary, cập nhật tất cả các primary manager hiện tại
+        if (isPrimary) {
+          await tx.lineManager.updateMany({
+            where: { lineId, isPrimary: true },
+            data: { isPrimary: false },
+          });
+        }
 
-      // Update the specific manager
-      await prisma.lineManager.updateMany({
-        where: { lineId, userId },
-        data: {
-          isPrimary,
-          ...(endDate ? { endDate } : {}),
-        },
+        // Cập nhật manager cụ thể
+        await tx.lineManager.updateMany({
+          where: { lineId, userId },
+          data: {
+            isPrimary,
+            ...(endDate ? { endDate } : {}),
+          },
+        });
       });
     } catch (error) {
-      this.logger.error(
-        `Error updating manager for line ${lineId}: ${error.message}`,
-        error.stack,
-      );
-      throw AppError.from(
-        new Error(`Failed to update line manager: ${error.message}`),
-        500
+      this.handleRepositoryError(
+        error,
+        `Lỗi khi cập nhật manager của line ${lineId}`,
       );
     }
   }
 
+  // Lấy danh sách managers của line
   async getManagers(lineId: string): Promise<
     {
       userId: string;
@@ -230,7 +200,7 @@ export class LinePrismaRepository extends BasePrismaRepository<Line, LineCreateD
     }[]
   > {
     try {
-      const managers = await prisma.lineManager.findMany({
+      const managers = await this.prisma.lineManager.findMany({
         where: {
           lineId,
           OR: [{ endDate: null }, { endDate: { gt: new Date() } }],
@@ -245,40 +215,35 @@ export class LinePrismaRepository extends BasePrismaRepository<Line, LineCreateD
         endDate: manager.endDate,
       }));
     } catch (error) {
-      this.logger.error(
-        `Error getting managers for line ${lineId}: ${error.message}`,
-        error.stack,
+      this.handleRepositoryError(
+        error,
+        `Lỗi khi lấy manager của line ${lineId}`,
       );
-      throw AppError.from(
-        new Error(`Failed to get line managers: ${error.message}`),
-        500
-      );
+      return []; // Để TypeScript không báo lỗi
     }
   }
 
-  // Validation methods
+  // Kiểm tra line có teams không
   async hasTeams(lineId: string): Promise<boolean> {
     try {
-      const count = await prisma.team.count({
+      const count = await this.prisma.team.count({
         where: { lineId },
       });
       return count > 0;
     } catch (error) {
-      this.logger.error(
-        `Error checking if line ${lineId} has teams: ${error.message}`,
-        error.stack,
+      this.handleRepositoryError(
+        error,
+        `Lỗi khi kiểm tra line ${lineId} có teams không`,
       );
-      throw AppError.from(
-        new Error(`Failed to check if line has teams: ${error.message}`),
-        500
-      );
+      return false; // Giả định không có teams nếu có lỗi
     }
   }
 
+  // Kiểm tra người dùng có quyền quản lý line không
   async isManager(userId: string, lineId: string): Promise<boolean> {
     try {
-      // Check if user has admin role
-      const hasAdminRole = await prisma.userRoleAssignment.findFirst({
+      // Kiểm tra vai trò admin
+      const hasAdminRole = await this.prisma.userRoleAssignment.findFirst({
         where: {
           userId,
           role: {
@@ -294,8 +259,8 @@ export class LinePrismaRepository extends BasePrismaRepository<Line, LineCreateD
         return true;
       }
 
-      // Check direct line manager assignment
-      const directAssignment = await prisma.lineManager.findFirst({
+      // Kiểm tra phân công quản lý trực tiếp
+      const directAssignment = await this.prisma.lineManager.findFirst({
         where: {
           userId,
           lineId,
@@ -307,28 +272,34 @@ export class LinePrismaRepository extends BasePrismaRepository<Line, LineCreateD
         return true;
       }
 
-      // Check role-based line manager assignment
-      const roleAssignment = await prisma.userRoleAssignment.findFirst({
+      // Kiểm tra quyền quản lý dựa trên vai trò
+      const roleAssignment = await this.prisma.userRoleAssignment.findFirst({
         where: {
           userId,
           role: {
             code: UserRole.LINE_MANAGER,
           },
-          scope: `line:${lineId}`,
+          scope: lineId,
           OR: [{ expiryDate: null }, { expiryDate: { gt: new Date() } }],
         },
       });
 
       return !!roleAssignment;
     } catch (error) {
-      this.logger.error(
-        `Error checking if user ${userId} is manager of line ${lineId}: ${error.message}`,
-        error.stack,
+      this.handleRepositoryError(
+        error,
+        `Lỗi khi kiểm tra quyền quản lý line ${lineId}`,
       );
-      throw AppError.from(
-        new Error(`Failed to check line manager status: ${error.message}`),
-        500
-      );
+      return false; // Mặc định là không có quyền quản lý nếu có lỗi
     }
+  }
+
+  // Xử lý lỗi repository một cách nhất quán
+  private handleRepositoryError(error: any, message: string): never {
+    this.logger.error(`${message}: ${error.message}`, error.stack);
+    throw AppError.from(
+      new Error(`${message}: ${error.message}`),
+      error.status || 500,
+    );
   }
 }

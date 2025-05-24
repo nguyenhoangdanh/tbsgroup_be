@@ -199,10 +199,13 @@ export class UserService implements IUserService {
     );
   }
 
-  async getUserRoles(
-    userId: string,
-  ): Promise<
-    { roleId: string; role: UserRole; scope?: string; expiryDate?: Date }[]
+  async getUserRoles(userId: string): Promise<
+    {
+      roleId: string;
+      role: UserRole;
+      scope?: string;
+      expiryDate?: Date;
+    }[]
   > {
     // Check if user exists
     const user = await this.userRepo.get(userId);
@@ -227,7 +230,14 @@ export class UserService implements IUserService {
       });
     }
 
-    return roles;
+    // Transform roles to match the expected return type
+    // This ensures expiryDate is either a Date or undefined, never null
+    return roles.map((role) => ({
+      roleId: role.roleId,
+      role: role.role,
+      scope: role.scope,
+      expiryDate: role.expiryDate || undefined,
+    }));
   }
 
   // Access control methods

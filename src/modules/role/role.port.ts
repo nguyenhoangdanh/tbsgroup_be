@@ -27,7 +27,7 @@ export interface IRoleRepository {
 // Interface cho role service
 export interface IRoleService {
   createRole(dto: RoleDTO): Promise<string>;
-  updateRole(id: string, dto: RoleDTO, role?: UserRole): Promise<void>;
+  updateRole(id: string, dto: RoleDTO, role?: string): Promise<void>;
   deleteRole(id: string): Promise<void>;
   getRole(id: string): Promise<Role>;
   getRoleWithRelations(id: string): Promise<RoleWithRelations>;

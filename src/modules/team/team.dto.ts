@@ -24,13 +24,14 @@ export class TeamCreateDTO {
   name!: string;
   lineId!: string;
   description?: string | null;
-  
+
   // Static validation method
   static validate(data: any): boolean {
     try {
       teamCreateDTOSchema.parse(data);
       return true;
     } catch (error) {
+      console.error('Validation error:', error);
       return false;
     }
   }
@@ -50,13 +51,14 @@ export class TeamUpdateDTO {
   name?: string;
   description?: string | null;
   updatedAt?: Date;
-  
+
   // Static validation method
   static validate(data: any): boolean {
     try {
       teamUpdateDTOSchema.parse(data);
       return true;
     } catch (error) {
+      console.error('Validation error:', error);
       return false;
     }
   }
@@ -80,13 +82,14 @@ export class TeamCondDTO {
   name?: string;
   lineId?: string;
   search?: string;
-  
+
   // Static validation method
   static validate(data: any): boolean {
     try {
       teamCondDTOSchema.parse(data);
       return true;
     } catch (error) {
+      console.error('Validation error:', error);
       return false;
     }
   }
@@ -106,13 +109,14 @@ export class TeamLeaderDTO {
   isPrimary: boolean = false;
   startDate!: Date;
   endDate?: Date | null;
-  
+
   // Static validation method
   static validate(data: any): boolean {
     try {
       teamLeaderDTOSchema.parse(data);
       return true;
     } catch (error) {
+      console.error('Validation error:', error);
       return false;
     }
   }

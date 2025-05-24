@@ -13,11 +13,15 @@ export class RolePrismaRepository implements IRoleRepository {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async get(id: string): Promise<Role | null> {
+  async get(id: string): Promise<Role> {
     try {
-      return await this.prisma.role.findUnique({
+      const role = await this.prisma.role.findUnique({
         where: { id },
       });
+      if (!role) {
+        throw AppError.from(new Error('Role not found'), 404);
+      }
+      return role;
     } catch (error) {
       this.logger.error(`Error fetching role: ${error.message}`, error.stack);
       throw AppError.from(

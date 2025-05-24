@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { UserRole } from 'src/share';
 import { authSchema } from './auth.model';
 
 // DTO cho đăng ký người dùng
@@ -28,9 +27,6 @@ export const registrationDTOSchema = authSchema
     positionId: true,
     email: true,
     phone: true,
-  })
-  .extend({
-    defaultRoleCode: z.nativeEnum(UserRole).default(UserRole.WORKER),
   })
   .required({
     username: true,

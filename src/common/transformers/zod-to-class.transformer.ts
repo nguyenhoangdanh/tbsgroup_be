@@ -38,8 +38,19 @@ export function generateClassFromZodSchema(
 
   // Tạo class mới
   const DynamicClass = class {
+    // Prevent additionalProperties in Swagger to avoid validation errors
+    static schema = { additionalProperties: false };
+
     constructor(data: any = {}) {
-      Object.assign(this, data);
+      // Only pick properties that are defined in the schema
+      if (data) {
+        const keys = Object.keys(shape);
+        for (const key of keys) {
+          if (key in data) {
+            (this as any)[key] = data[key];
+          }
+        }
+      }
     }
   };
 
@@ -51,8 +62,11 @@ export function generateClassFromZodSchema(
     // Xử lý thuộc tính
     const propertyOptions = extractApiPropertyOptions(zodType as ZodType);
 
-    // Đặt decorator ApiProperty
-    ApiProperty(propertyOptions)(DynamicClass.prototype, key);
+    // Đặt decorator ApiProperty với additionalProperties: false để tránh thêm các trường không cần thiết
+    ApiProperty({
+      ...propertyOptions,
+      required: propertyOptions.required !== false, // Đảm bảo required mặc định là true
+    })(DynamicClass.prototype, key);
 
     // Định nghĩa property trên prototype
     Object.defineProperty(DynamicClass.prototype, key, {

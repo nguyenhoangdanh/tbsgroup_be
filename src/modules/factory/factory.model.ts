@@ -36,4 +36,57 @@ export const factorySchema = z.object({
   updatedAt: z.date(),
 });
 
-export type Factory = z.infer<typeof factorySchema>;
+/**
+ * Factory entity model representing a factory in the system
+ * Corresponds to the Factory model in the Prisma schema
+ */
+export class Factory {
+  id: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  address?: string | null;
+  departmentId?: string | null;
+  managingDepartmentId?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+
+  constructor(partial: Partial<Factory>) {
+    Object.assign(this, partial);
+  }
+
+  /**
+   * Create a new Factory instance from plain object
+   */
+  static from(data: any): Factory {
+    return new Factory({
+      id: data.id,
+      code: data.code,
+      name: data.name,
+      description: data.description,
+      address: data.address,
+      departmentId: data.departmentId || data.department_id,
+      managingDepartmentId:
+        data.managingDepartmentId || data.managing_department_id,
+      createdAt: data.createdAt || data.created_at,
+      updatedAt: data.updatedAt || data.updated_at,
+    });
+  }
+
+  /**
+   * Convert Factory instance to plain object for database operations
+   */
+  toDb(): any {
+    return {
+      id: this.id,
+      code: this.code,
+      name: this.name,
+      description: this.description,
+      address: this.address,
+      departmentId: this.departmentId,
+      managingDepartmentId: this.managingDepartmentId,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
+    };
+  }
+}

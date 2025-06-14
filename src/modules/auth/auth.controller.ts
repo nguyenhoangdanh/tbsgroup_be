@@ -215,7 +215,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: ExpressResponse,
     @Body(new ZodValidationPipe(loginDTOSchema)) dto: LoginDTO,
   ) {
-    const { token, expiresIn, requiredResetPassword, user } =
+    const { token, expiresIn, requiredResetPassword, data } =
       await this.authService.login(dto);
 
     // Set HTTP-only cookie with the token
@@ -236,10 +236,15 @@ export class AuthController {
     // Also send token in response for mobile/SPA clients
     return {
       success: true,
-      user,
-      accessToken: token,
-      expiresIn,
-      requiredResetPassword,
+      data: {
+        ...data,
+        token,
+        expiresIn,
+        requiredResetPassword,
+      },
+      // accessToken: token,
+      // expiresIn,
+      // requiredResetPassword,
     };
   }
 

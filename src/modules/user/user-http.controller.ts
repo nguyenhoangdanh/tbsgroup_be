@@ -90,7 +90,7 @@ export class UserHttpController {
     return { success: true, ...result };
   }
 
-  @Get('users/:id')
+  @Get(':id')
   @UseGuards(RemoteAuthGuard)
   @HttpCode(HttpStatus.OK)
   async getUser(@Request() req: ReqWithRequester, @Param('id') id: string) {
@@ -118,7 +118,7 @@ export class UserHttpController {
     return { success: true, data };
   }
 
-  @Patch('users/:id')
+  @Patch(':id')
   @UseGuards(RemoteAuthGuard)
   @HttpCode(HttpStatus.OK)
   async updateUser(
@@ -130,18 +130,22 @@ export class UserHttpController {
     return { success: true };
   }
 
-  @Delete('users/:id')
+  @Delete(':id')
   @UseGuards(RemoteAuthGuard)
   @HttpCode(HttpStatus.OK)
-  async deleteUser(@Request() req: ReqWithRequester, @Param('id') id: string) {
-    await this.userService.delete(req.requester, id);
+  async deleteUser(
+    @Request() req: ReqWithRequester,
+    @Param('id') id: string,
+    isHard: boolean = true,
+  ) {
+    await this.userService.delete(req.requester, id, isHard);
     return { success: true };
   }
 
   /**
    * Role management endpoints
    */
-  @Get('users/:id/roles')
+  @Get(':id/roles')
   @UseGuards(RemoteAuthGuard)
   @HttpCode(HttpStatus.OK)
   async getUserRoles(@Param('id') id: string) {
@@ -149,7 +153,7 @@ export class UserHttpController {
     return { success: true, data: roles };
   }
 
-  @Post('users/:id/roles')
+  @Post(':id/roles')
   @UseGuards(RemoteAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @HttpCode(HttpStatus.CREATED)
@@ -162,7 +166,7 @@ export class UserHttpController {
     return { success: true };
   }
 
-  @Delete('users/:id/roles/:roleId')
+  @Delete(':id/roles/:roleId')
   @UseGuards(RemoteAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @HttpCode(HttpStatus.OK)

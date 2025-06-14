@@ -17,7 +17,6 @@ import {
   ErrInvalidUsernameAndPassword,
   ErrMissingResetCredentials,
   ErrUserInactivated,
-  ErrUsernameExisted,
   UserStatus,
 } from './auth.model';
 import { IAuthService, ITokenService } from './auth.port';
@@ -26,6 +25,10 @@ import { ROLE_SERVICE } from '../role/role.di-token';
 import { IRoleService } from '../role/role.port';
 import { User } from '../user/user.model';
 import { TOKEN_SERVICE } from './auth.di-token';
+import {
+  ErrCardIdExisted,
+  ErrEmployeeIdExisted,
+} from 'src/share/models/user.shared-model';
 
 @Injectable()
 export class AuthService implements IAuthService {
@@ -40,9 +43,20 @@ export class AuthService implements IAuthService {
   async register(dto: RegistrationDTO): Promise<string> {
     try {
       // Check if username already exists
-      const existingUser = await this.userRepo.findByUsername(dto.username);
-      if (existingUser) {
-        throw AppError.from(ErrUsernameExisted, 400);
+      // const existingUser = await this.userRepo.findByUsername(dto.username);
+      // if (existingUser) {
+      //   throw AppError.from(ErrUsernameExisted, 400);
+      // }
+
+      const existingCardUser = await this.userRepo.findByCardId(dto.cardId);
+      if (existingCardUser) {
+        throw AppError.from(ErrCardIdExisted, 400);
+      }
+      const existingEmployeeUser = await this.userRepo.findByEmployeeId(
+        dto.employeeId,
+      );
+      if (existingEmployeeUser) {
+        throw AppError.from(ErrEmployeeIdExisted, 400);
       }
 
       // Generate salt and hash password
@@ -115,7 +129,7 @@ export class AuthService implements IAuthService {
     token: string;
     expiresIn: number;
     requiredResetPassword: boolean;
-    user: Omit<User, 'password' | 'salt'>;
+    data: Omit<User, 'password' | 'salt'>;
   }> {
     try {
       // Find user by username
@@ -179,7 +193,7 @@ export class AuthService implements IAuthService {
       this.logger.log(`User logged in: ${user.username} (${user.id})`);
 
       return {
-        user: {
+        data: {
           id: user.id,
           username: user.username,
           roleId: user.roleId,
@@ -191,6 +205,7 @@ export class AuthService implements IAuthService {
           teamId: user.teamId || null,
           groupId: user.groupId || null,
           positionId: user.positionId || null,
+          role: role.code,
           status: user.status,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,

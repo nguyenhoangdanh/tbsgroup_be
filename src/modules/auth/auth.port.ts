@@ -25,7 +25,7 @@ export interface IAuthService {
     token: string;
     expiresIn: number;
     requiredResetPassword: boolean;
-    user: Omit<User, 'password' | 'salt'>;
+    data: Omit<User, 'password' | 'salt'>;
   }>;
   logout(token: string): Promise<void>;
   introspectToken(token: string): Promise<TokenPayload>;

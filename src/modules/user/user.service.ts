@@ -34,9 +34,18 @@ export class UserService implements IUserService {
         throw AppError.from(ErrNotFound, 404);
       }
 
+      const role = await this.roleService.getRole(user.roleId);
+      if (!role) {
+        this.logger.warn(`Role not found for user: ${userId}`);
+        throw AppError.from(ErrNotFound, 404);
+      }
+
       // Exclude sensitive information
       const { password, salt, ...userInfo } = user;
-      return userInfo;
+      return {
+        ...userInfo,
+        role: role.code,
+      };
     } catch (error) {
       if (error instanceof AppError && error.message === 'Not found') {
         // Convert "Not found" errors to Unauthorized for profile requests
@@ -105,7 +114,7 @@ export class UserService implements IUserService {
     this.logger.log(`User updated: ${userId} by ${requester.sub}`);
   }
 
-  async delete(requester: Requester, userId: string): Promise<void> {
+  async delete(requester: Requester, userId: string, isHard: boolean): Promise<void> {
     // Check if user exists
     const user = await this.userRepo.get(userId);
     if (!user) {
@@ -123,7 +132,7 @@ export class UserService implements IUserService {
     }
 
     // Soft delete the user (change status to DELETED)
-    await this.userRepo.delete(userId, false);
+    await this.userRepo.delete(userId, isHard);
 
     this.logger.log(`User deleted: ${userId} by ${requester.sub}`);
   }

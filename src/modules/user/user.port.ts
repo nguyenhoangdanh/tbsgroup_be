@@ -16,7 +16,7 @@ export interface IUserService {
     userId: string,
     dto: UserUpdateDTO,
   ): Promise<void>;
-  delete(requester: Requester, userId: string): Promise<void>;
+  delete(requester: Requester, userId: string, isHard: boolean): Promise<void>;
 
   // Role management
   assignRole(
@@ -61,8 +61,9 @@ export interface IUserRepository {
   // Query
   get(id: string): Promise<User | null>;
   findByCond(cond: UserCondDTO): Promise<User | null>;
-  findByCardId(cardId: string, employeeId: string): Promise<User | null>;
+  findByCardId(cardId: string, employeeId?: string): Promise<User | null>;
   findByUsername(username: string): Promise<User | null>;
+  findByEmployeeId(employeeId: string): Promise<User | null>;
   findByResetToken(token: string): Promise<User | null>;
   listByIds(ids: string[]): Promise<User[]>;
   list(

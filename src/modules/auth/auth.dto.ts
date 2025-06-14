@@ -61,16 +61,7 @@ export const resetPasswordDTOSchema = z
   .refine((data) => data.password === data.confirmPassword, {
     message: 'Mật khẩu xác nhận không khớp với mật khẩu mới',
     path: ['confirmPassword'],
-  })
-  .refine(
-    (data) =>
-      (data.username && !data.cardId && !data.employeeId) ||
-      (!data.username && data.cardId && data.employeeId),
-    {
-      message: 'Vui lòng cung cấp username hoặc cả cardId và employeeId',
-      path: ['username'],
-    },
-  );
+  });
 
 export type ResetPasswordDTO = z.infer<typeof resetPasswordDTOSchema>;
 

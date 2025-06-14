@@ -23,6 +23,8 @@ export const ErrPasswordAtLeast6Chars = new Error(
   'Password bắt buộc phải có ít nhất 6 ký tự',
 );
 export const ErrUsernameExisted = new Error('Username đã tồn tại');
+export const ErrCardIdExisted = new Error('Mã CCCD đã tồn tại');
+export const ErrEmployeeIdExisted = new Error('Mã nhân viên đã tồn tại');
 export const ErrInvalidUsernameAndPassword = new Error(
   'Tên đăng nhập hoặc mật khẩu không đúng',
 );

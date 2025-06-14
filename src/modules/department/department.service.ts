@@ -12,6 +12,7 @@ import {
   FilterDepartmentDto,
   UpdateDepartmentDto,
 } from './department.dto';
+import { AppError } from 'src/share';
 
 // Định nghĩa kiểu dữ liệu cho nút trong cây tổ chức
 interface DepartmentTreeNode extends Department {
@@ -34,7 +35,7 @@ export class DepartmentService implements IDepartmentService {
         data.code,
       );
       if (existingCode) {
-        throw ErrDepartmentCodeExists;
+        throw AppError.from(ErrDepartmentCodeExists, 404);
       }
 
       // Kiểm tra tên phòng ban đã tồn tại chưa
@@ -42,14 +43,20 @@ export class DepartmentService implements IDepartmentService {
         data.name,
       );
       if (existingName) {
-        throw ErrDepartmentNameExists;
+        throw AppError.from(ErrDepartmentNameExists, 404);
       }
 
       // Tạo phòng ban mới - FIXED: Removed id property that doesn't exist in CreateDepartmentDto
       return this.departmentRepository.create(data);
     } catch (error) {
       this.logger.error(`Lỗi khi tạo phòng ban: ${error.message}`, error.stack);
-      throw error;
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw AppError.from(
+        new Error(`Lỗi khi tạo phòng ban: ${error.message}`),
+        500,
+      );
     }
   }
 
@@ -65,7 +72,13 @@ export class DepartmentService implements IDepartmentService {
         `Lỗi khi tìm phòng ban theo ID: ${error.message}`,
         error.stack,
       );
-      throw error;
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw AppError.from(
+        new Error(`Lỗi khi tìm phòng ban theo ID: ${error.message}`),
+        500,
+      );
     }
   }
 
@@ -77,7 +90,13 @@ export class DepartmentService implements IDepartmentService {
         `Lỗi khi tìm phòng ban theo mã: ${error.message}`,
         error.stack,
       );
-      throw error;
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw AppError.from(
+        new Error(`Lỗi khi tìm phòng ban theo mã: ${error.message}`),
+        500,
+      );
     }
   }
 
@@ -89,7 +108,7 @@ export class DepartmentService implements IDepartmentService {
         `Lỗi khi tìm tất cả phòng ban: ${error.message}`,
         error.stack,
       );
-      throw error;
+      throw AppError.from(new Error('Không thể lấy danh sách phòng ban'), 500);
     }
   }
 
@@ -104,7 +123,7 @@ export class DepartmentService implements IDepartmentService {
           data.name,
         );
         if (existingName && existingName.id !== id) {
-          throw ErrDepartmentNameExists;
+          throw AppError.from(ErrDepartmentNameExists, 404);
         }
       }
 
@@ -115,7 +134,14 @@ export class DepartmentService implements IDepartmentService {
         `Lỗi khi cập nhật phòng ban: ${error.message}`,
         error.stack,
       );
-      throw error;
+
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw AppError.from(
+        new Error(`Không thể cập nhật phòng ban: ${error.message}`),
+        500,
+      );
     }
   }
 
@@ -128,7 +154,13 @@ export class DepartmentService implements IDepartmentService {
       return this.departmentRepository.delete(id);
     } catch (error) {
       this.logger.error(`Lỗi khi xóa phòng ban: ${error.message}`, error.stack);
-      throw error;
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw AppError.from(
+        new Error(`Không thể xóa phòng ban: ${error.message}`),
+        500,
+      );
     }
   }
 
@@ -169,7 +201,13 @@ export class DepartmentService implements IDepartmentService {
         `Lỗi khi lấy cây tổ chức: ${error.message}`,
         error.stack,
       );
-      throw error;
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw AppError.from(
+        new Error(`Không thể lấy cây tổ chức: ${error.message}`),
+        500,
+      );
     }
   }
 
@@ -197,7 +235,13 @@ export class DepartmentService implements IDepartmentService {
         `Lỗi khi lấy phân cấp phòng ban: ${error.message}`,
         error.stack,
       );
-      throw error;
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw AppError.from(
+        new Error(`Không thể lấy phân cấp phòng ban: ${error.message}`),
+        500,
+      );
     }
   }
 }

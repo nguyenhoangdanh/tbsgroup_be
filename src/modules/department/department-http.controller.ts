@@ -14,6 +14,7 @@ import {
   Req,
   BadRequestException,
   UseInterceptors,
+  Patch,
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { IDepartmentService } from './department.port';
@@ -149,7 +150,7 @@ export class DepartmentHttpController {
     return this.departmentService.findById(id);
   }
 
-  @Put(':id')
+  @Patch(':id')
   @ApiOperation({ summary: 'Cập nhật thông tin phòng ban' })
   @ApiResponse({
     status: HttpStatus.OK,

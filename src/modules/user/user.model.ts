@@ -15,7 +15,7 @@ export { ErrPermissionDenied, ErrRoleAlreadyAssigned, ErrEntityTypeInvalid };
 
 // Mở rộng từ base schema và thêm trường role nếu cần
 export const userSchema = baseUserSchema.extend({
-  // role: z.nativeEnum(UserRole).optional(),
+  role: z.string().optional(),
 });
 
 export type User = z.infer<typeof userSchema>;

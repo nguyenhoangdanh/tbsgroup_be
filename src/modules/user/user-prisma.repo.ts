@@ -4,6 +4,7 @@ import { User } from './user.model';
 import { IUserRepository } from './user.port';
 import { UserRole } from 'src/share';
 import { PrismaService } from 'src/share/prisma.service';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class UserPrismaRepository implements IUserRepository {
@@ -49,7 +50,10 @@ export class UserPrismaRepository implements IUserRepository {
     }
   }
 
-  async findByCardId(cardId: string, employeeId: string): Promise<User | null> {
+  async findByCardId(
+    cardId: string,
+    employeeId?: string,
+  ): Promise<User | null> {
     try {
       const user = await this.prisma.user.findFirst({
         where: { cardId, employeeId },
@@ -79,6 +83,23 @@ export class UserPrismaRepository implements IUserRepository {
       return user as User;
     } catch (error) {
       this.logger.error(`Error in findByUsername: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async findByEmployeeId(employeeId: string): Promise<User | null> {
+    try {
+      const user = await this.prisma.user.findFirst({
+        where: { employeeId },
+      });
+
+      if (user && 'deletedAt' in user && user.deletedAt !== null) {
+        return null;
+      }
+
+      return user as User;
+    } catch (error) {
+      this.logger.error(`Error in findByEmployeeId: ${error.message}`);
       throw error;
     }
   }
@@ -123,9 +144,43 @@ export class UserPrismaRepository implements IUserRepository {
     pagination: PaginationDTO,
   ): Promise<{ data: User[]; total: number }> {
     try {
-      const { page, limit, sortBy, sortOrder } = pagination;
+      // Ensure pagination parameters are proper numbers, not strings
+      const page = Number(pagination.page) || 1;
+      const limit = Number(pagination.limit) || 10;
+      const { sortBy, sortOrder } = pagination;
 
-      const whereClause: any = { ...conditions };
+      // Create a clean whereClause without pagination parameters
+      const whereClause: Prisma.UserWhereInput = {};
+
+      // Filter status if provided
+      if (conditions.status) {
+        whereClause.status = conditions.status;
+      }
+
+      // Filter by factoryId if provided
+      if (conditions.factoryId) {
+        whereClause.factoryId = conditions.factoryId;
+      }
+
+      // Filter by lineId if provided
+      if (conditions.lineId) {
+        whereClause.lineId = conditions.lineId;
+      }
+
+      // Filter by teamId if provided
+      if (conditions.teamId) {
+        whereClause.teamId = conditions.teamId;
+      }
+
+      // Filter by groupId if provided
+      if (conditions.groupId) {
+        whereClause.groupId = conditions.groupId;
+      }
+
+      // Filter by positionId if provided
+      if (conditions.positionId) {
+        whereClause.positionId = conditions.positionId;
+      }
 
       // Filtering by role
       if (conditions.roleId) {
@@ -153,13 +208,11 @@ export class UserPrismaRepository implements IUserRepository {
         };
       }
 
-      // Bỏ qua các user đã bị xóa mềm
-      // Mặc định loại bỏ các user đã bị xóa mềm trong logic của application
-
       // Count total before pagination
       const total = await this.prisma.user.count({ where: whereClause });
 
-      // Get paginated data
+      // Get paginated data - Use pagination parameters here only
+      // Ensure skip and take are proper integers
       const users = await this.prisma.user.findMany({
         where: whereClause,
         skip: (page - 1) * limit,

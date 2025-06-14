@@ -34,17 +34,21 @@ import { UserDepartmentModule } from './modules/user-department/user-department.
 
 @Module({
   imports: [
-    // Serve static files
-    ServeStaticModule.forRoot({
-      rootPath: join(__dirname, '..', 'uploads'),
-      serveRoot: '/uploads',
-      exclude: ['/api*'],
-    }),
-    ServeStaticModule.forRoot({
-      rootPath: join(__dirname, '..', 'public'),
-      serveRoot: '/',
-      exclude: ['/api*'],
-    }),
+    // Conditionally serve static files only in development
+    ...(process.env.NODE_ENV !== 'production'
+      ? [
+          ServeStaticModule.forRoot({
+            rootPath: join(__dirname, '..', 'uploads'),
+            serveRoot: '/uploads',
+            exclude: ['/api*'],
+          }),
+          ServeStaticModule.forRoot({
+            rootPath: join(__dirname, '..', 'public'),
+            serveRoot: '/',
+            exclude: ['/api*'],
+          }),
+        ]
+      : []),
 
     // Config module
     ConfigModule.forRoot({

@@ -22,7 +22,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.jsona",
     "postinstall": "prisma generate",
     "deploy": "vercel --prod",
-    "vercel-build": "prisma generate && nest build",
+    "vercel-build": "echo 'Building for Vercel...' && prisma generate && nest build && echo 'Build completed successfully'",
     "prisma:reset": "prisma migrate reset --force",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",

@@ -15,4 +15,15 @@ export class AppController {
   async getHello(): Promise<string> {
     return await this.appService.getHello();
   }
+
+  @Get('health')
+  @Public()
+  @ApiOperation({ summary: 'Health check endpoint' })
+  @ApiResponse({ status: 200, description: 'Returns server health status' })
+  async health(): Promise<{ status: string; timestamp: string }> {
+    return {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+    };
+  }
 }

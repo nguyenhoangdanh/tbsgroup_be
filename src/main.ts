@@ -7,7 +7,6 @@ import { setupSwagger } from './common/swagger/swagger.config';
 import { AuthExceptionFilter } from './common/exceptions/auth-filter.exception';
 import { SwaggerTokenInterceptor } from './common/interceptors/swagger-token.interceptor';
 import { ValidationPipe } from '@nestjs/common';
-import { join } from 'path';
 import { NestExpressApplication } from '@nestjs/platform-express';
 
 async function bootstrap() {
@@ -41,9 +40,6 @@ async function bootstrap() {
 
     // Đặt prefix cho tất cả API
     app.setGlobalPrefix('api/v1');
-
-    // Thêm thư mục tĩnh cho custom CSS (nếu cần)
-    app.useStaticAssets(join(__dirname, '..', 'public'));
 
     // Đăng ký global pipes
     app.useGlobalPipes(

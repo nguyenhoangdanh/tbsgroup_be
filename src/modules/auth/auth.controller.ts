@@ -218,22 +218,28 @@ export class AuthController {
     const { token, expiresIn, requiredResetPassword, data } =
       await this.authService.login(dto);
 
-    // Set HTTP-only cookie with the token
-    res.cookie('accessToken', token, {
+    // Enhanced cookie configuration for production
+    const isProduction = process.env.NODE_ENV === 'production';
+    const cookieOptions = {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      maxAge: expiresIn * 1000, // Convert seconds to milliseconds
-    });
-    // res.cookie('accessToken', token, {
-    //   httpOnly: true,
-    //   secure: true, // Luôn true trên production
-    //   sameSite: 'none', // Quan trọng cho cross-domain
-    //   maxAge: expiresIn * 1000,
-    //   path: '/',
-    // });
+      secure: isProduction, // Only HTTPS in production
+      sameSite: (isProduction ? 'none' : 'lax') as 'none' | 'lax' | 'strict', // Explicit type casting
+      maxAge: expiresIn * 1000,
+      path: '/',
+      domain: isProduction ? process.env.COOKIE_DOMAIN : undefined, // Set domain if needed
+    };
 
-    // Also send token in response for mobile/SPA clients
+    // Log cookie configuration for debugging
+    this.logger.debug(`Setting cookie with options:`, cookieOptions);
+
+    res.cookie('accessToken', token, cookieOptions);
+
+    // Also set additional headers for CORS
+    if (isProduction) {
+      res.header('Access-Control-Allow-Credentials', 'true');
+      res.header('Access-Control-Allow-Origin', process.env.FRONTEND_URL);
+    }
+
     return {
       success: true,
       data: {
@@ -242,9 +248,6 @@ export class AuthController {
         expiresIn,
         requiredResetPassword,
       },
-      // accessToken: token,
-      // expiresIn,
-      // requiredResetPassword,
     };
   }
 
@@ -289,11 +292,14 @@ export class AuthController {
       await this.authService.logout(headerToken);
     }
 
-    // Clear cookies
+    // Enhanced cookie clearing for production
+    const isProduction = process.env.NODE_ENV === 'production';
     res.clearCookie('accessToken', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      secure: isProduction,
+      sameSite: (isProduction ? 'none' : 'lax') as 'none' | 'lax' | 'strict', // Explicit type casting
+      path: '/',
+      domain: isProduction ? process.env.COOKIE_DOMAIN : undefined,
     });
 
     // For better security, tell browsers to clear Authorization header
@@ -337,7 +343,6 @@ export class AuthController {
     @Res({ passthrough: true }) res: ExpressResponse,
     @Request() req: ExpressRequest,
   ) {
-    // Get token from request
     const token =
       req.cookies?.accessToken || req.headers.authorization?.split(' ')[1];
 
@@ -345,18 +350,21 @@ export class AuthController {
       throw AppError.from(ErrInvalidToken, 401);
     }
 
-    // Refresh token
     const { token: newToken, expiresIn } =
       await this.authService.refreshToken(token);
 
-    // Set new cookie
-    res.cookie('accessToken', newToken, {
+    // Use same enhanced cookie configuration
+    const isProduction = process.env.NODE_ENV === 'production';
+    const cookieOptions = {
       httpOnly: true,
-      secure: true, // Luôn true trên production
-      sameSite: 'none', // Quan trọng cho cross-domain
+      secure: isProduction,
+      sameSite: (isProduction ? 'none' : 'lax') as 'none' | 'lax' | 'strict', // Explicit type casting
       maxAge: expiresIn * 1000,
       path: '/',
-    });
+      domain: isProduction ? process.env.COOKIE_DOMAIN : undefined,
+    };
+
+    res.cookie('accessToken', newToken, cookieOptions);
 
     return {
       success: true,

@@ -20,7 +20,7 @@ async function bootstrap() {
     app.enableCors({
       origin: [
         'http://localhost:3000',
-        'https://nmtxts-daily-performance.vercel.app',
+        'https://thoaison-handbag-factory.vercel.app',
       ],
       credentials: true,
       allowedHeaders: [

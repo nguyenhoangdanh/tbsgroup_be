@@ -18,9 +18,21 @@ export class ReportExportService {
   private readonly EXPORT_DIR = 'public/exports';
 
   constructor() {
-    // Ensure export directory exists
-    if (!fs.existsSync(this.EXPORT_DIR)) {
-      fs.mkdirSync(this.EXPORT_DIR, { recursive: true });
+    try {
+      // Ensure public directory exists first
+      const publicDir = path.join(process.cwd(), 'public');
+      if (!fs.existsSync(publicDir)) {
+        fs.mkdirSync(publicDir, { recursive: true });
+      }
+      
+      // Then create exports directory
+      const exportsDir = path.join(publicDir, 'exports');
+      if (!fs.existsSync(exportsDir)) {
+        fs.mkdirSync(exportsDir, { recursive: true });
+      }
+    } catch (error) {
+      console.warn('Could not create directories:', error);
+      // Continue without throwing error for serverless environments
     }
   }
 

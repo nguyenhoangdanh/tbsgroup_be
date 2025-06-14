@@ -1,11 +1,11 @@
 import { Injectable, NestMiddleware, Logger } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
-import { json } from 'body-parser';
+import * as express from 'express';
 
 @Injectable()
 export class BodyCaptureMiddleware implements NestMiddleware {
   private readonly logger = new Logger(BodyCaptureMiddleware.name);
-  private jsonParser = json({ limit: '10mb' });
+  private jsonParser = express.json({ limit: '10mb' });
 
   use(req: Request, res: Response, next: NextFunction) {
     // Store the original req.body before any middleware might modify it
@@ -32,9 +32,9 @@ export class BodyCaptureMiddleware implements NestMiddleware {
     // Process the request
     const contentType = req.headers['content-type'] || '';
     if (contentType.includes('application/json')) {
-      this.jsonParser(req, res, (err) => {
+      this.jsonParser(req, res, (err: any) => {
         if (err) {
-          this.logger.error(`Lỗi khi parse JSON body: ${err.message}`);
+          this.logger.error(`Error parsing JSON body: ${err.message}`);
           res.status(400).json({
             statusCode: 400,
             message: 'Invalid JSON in request body',

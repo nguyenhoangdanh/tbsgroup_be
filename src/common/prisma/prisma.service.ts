@@ -5,7 +5,7 @@ import {
   OnModuleInit,
   OnModuleDestroy,
 } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 
 @Injectable()
 export class PrismaService
@@ -22,10 +22,10 @@ export class PrismaService
         { emit: 'stdout', level: 'warn' },
         { emit: 'stdout', level: 'error' },
       ],
-    });
+    } as Prisma.PrismaClientOptions);
 
-    // Sửa lỗi type cho event handler
-    this.$on('query', (e: any) => {
+    // Fix type for event handler
+    (this as any).$on('query', (e: Prisma.QueryEvent) => {
       if (process.env.DEBUG_PRISMA === 'true') {
         this.logger.debug(`Query: ${e.query}`);
         this.logger.debug(`Duration: ${e.duration}ms`);

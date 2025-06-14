@@ -766,7 +766,7 @@ export class ReportExportService {
     filePath: string,
   ): Promise<void> {
     // Not using startDate and endDate, removing them
-    
+
     // Create CSV writer for summary
     const csvWriter = createObjectCsvWriter({
       path: filePath,

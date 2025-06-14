@@ -114,7 +114,11 @@ export class UserService implements IUserService {
     this.logger.log(`User updated: ${userId} by ${requester.sub}`);
   }
 
-  async delete(requester: Requester, userId: string, isHard: boolean): Promise<void> {
+  async delete(
+    requester: Requester,
+    userId: string,
+    isHard: boolean,
+  ): Promise<void> {
     // Check if user exists
     const user = await this.userRepo.get(userId);
     if (!user) {

@@ -4,13 +4,23 @@ import { z } from 'zod';
 export const ErrHandBagCodeExists = new Error('Mã túi xách đã tồn tại');
 export const ErrHandBagNotFound = new Error('Không tìm thấy túi xách');
 export const ErrHandBagNameExists = new Error('Tên túi xách đã tồn tại');
-export const ErrBagColorCodeExists = new Error('Mã màu túi đã tồn tại cho túi này');
+export const ErrBagColorCodeExists = new Error(
+  'Mã màu túi đã tồn tại cho túi này',
+);
 export const ErrBagColorNotFound = new Error('Không tìm thấy màu túi');
 export const ErrBagProcessNotFound = new Error('Không tìm thấy công đoạn');
-export const ErrBagColorProcessExists = new Error('Công đoạn đã tồn tại cho màu túi này');
-export const ErrBagColorProcessNotFound = new Error('Không tìm thấy công đoạn của màu túi');
-export const ErrPermissionDenied = new Error('Bạn không có quyền thực hiện hành động này');
-export const ErrHandBagHasProduction = new Error('Túi xách đang được sử dụng trong sản xuất, không thể xóa');
+export const ErrBagColorProcessExists = new Error(
+  'Công đoạn đã tồn tại cho màu túi này',
+);
+export const ErrBagColorProcessNotFound = new Error(
+  'Không tìm thấy công đoạn của màu túi',
+);
+export const ErrPermissionDenied = new Error(
+  'Bạn không có quyền thực hiện hành động này',
+);
+export const ErrHandBagHasProduction = new Error(
+  'Túi xách đang được sử dụng trong sản xuất, không thể xóa',
+);
 
 // Data models
 export const handBagSchema = z.object({
@@ -64,7 +74,8 @@ export const bagColorProcessSchema = z.object({
   qualityNotes: z.string().nullable().optional(),
   specialTools: z.string().nullable().optional(),
   productivity: z.number({
-    invalid_type_error: 'Năng suất phải là một số nguyên hoặc số thập phân (vd: 123 hoặc 123.45)',
+    invalid_type_error:
+      'Năng suất phải là một số nguyên hoặc số thập phân (vd: 123 hoặc 123.45)',
   }),
   createdAt: z.date(),
   updatedAt: z.date(),

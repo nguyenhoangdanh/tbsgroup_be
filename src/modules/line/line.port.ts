@@ -9,7 +9,8 @@ import { Line } from './line.model';
 import { ICrudRepository, ICrudService } from 'src/CrudModule/crud.interface';
 
 // Interface cho line repository
-export interface ILineRepository extends ICrudRepository<Line, LineCreateDTO, LineUpdateDTO> {
+export interface ILineRepository
+  extends ICrudRepository<Line, LineCreateDTO, LineUpdateDTO> {
   // Query
   findByCode(code: string): Promise<Line | null>;
   listByFactoryId(factoryId: string): Promise<Line[]>;
@@ -23,12 +24,14 @@ export interface ILineRepository extends ICrudRepository<Line, LineCreateDTO, Li
     isPrimary: boolean,
     endDate?: Date,
   ): Promise<void>;
-  getManagers(lineId: string): Promise<{
-    userId: string;
-    isPrimary: boolean;
-    startDate: Date;
-    endDate: Date | null;
-  }[]>;
+  getManagers(lineId: string): Promise<
+    {
+      userId: string;
+      isPrimary: boolean;
+      startDate: Date;
+      endDate: Date | null;
+    }[]
+  >;
 
   // Validation methods
   hasTeams(lineId: string): Promise<boolean>;
@@ -39,7 +42,8 @@ export interface ILineRepository extends ICrudRepository<Line, LineCreateDTO, Li
 }
 
 // Interface cho line service
-export interface ILineService extends ICrudService<Line, LineCreateDTO, LineUpdateDTO> {
+export interface ILineService
+  extends ICrudService<Line, LineCreateDTO, LineUpdateDTO> {
   // Line manager methods
   addLineManager(
     requester: Requester,
@@ -58,25 +62,27 @@ export interface ILineService extends ICrudService<Line, LineCreateDTO, LineUpda
     isPrimary: boolean,
     endDate?: Date,
   ): Promise<void>;
-  getLineManagers(lineId: string): Promise<{
-    userId: string;
-    isPrimary: boolean;
-    startDate: Date;
-    endDate: Date | null;
-    user?: {
-      id: string;
-      fullName: string;
-      avatar?: string | null;
-    };
-  }[]>;
+  getLineManagers(lineId: string): Promise<
+    {
+      userId: string;
+      isPrimary: boolean;
+      startDate: Date;
+      endDate: Date | null;
+      user?: {
+        id: string;
+        fullName: string;
+        avatar?: string | null;
+      };
+    }[]
+  >;
 
   // Access validation
   canManageLine(userId: string, lineId: string): Promise<boolean>;
   getUserAccessibleLines(userId: string): Promise<string[]>;
-  
+
   // Query methods
   findByFactoryId(factoryId: string): Promise<Line[]>;
 
-    // Add this method - needed by RPC controller
-    findByCode(code: string): Promise<Line | null>;
+  // Add this method - needed by RPC controller
+  findByCode(code: string): Promise<Line | null>;
 }

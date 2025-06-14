@@ -179,7 +179,8 @@ export class HandBagService implements IHandBagService {
       }
 
       // Kiểm tra túi có trong sản xuất không
-      const hasProductionRecords = await this.handBagRepo.hasProductionRecords(id);
+      const hasProductionRecords =
+        await this.handBagRepo.hasProductionRecords(id);
       if (hasProductionRecords) {
         throw AppError.from(ErrHandBagHasProduction, 400);
       }
@@ -392,7 +393,8 @@ export class HandBagService implements IHandBagService {
       }
 
       // Kiểm tra màu túi có trong sản xuất không
-      const hasProductionRecords = await this.handBagRepo.hasProductionRecordsForColor(id);
+      const hasProductionRecords =
+        await this.handBagRepo.hasProductionRecordsForColor(id);
       if (hasProductionRecords) {
         throw AppError.from(
           new Error('Màu túi đang được sử dụng trong sản xuất, không thể xóa'),

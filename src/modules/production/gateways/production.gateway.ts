@@ -163,7 +163,7 @@ export class ProductionGateway
       await client.leave(roomName);
 
       // Remove room from tracked rooms
-      clientData.rooms = clientData.rooms.filter(room => room !== roomName);
+      clientData.rooms = clientData.rooms.filter((room) => room !== roomName);
       this.connectedClients.set(client.id, clientData);
 
       console.log(`Client ${client.id} left room ${roomName}`);

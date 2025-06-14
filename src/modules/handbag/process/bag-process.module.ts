@@ -1,7 +1,13 @@
 import { Module } from '@nestjs/common';
 import { ShareModule } from 'src/share/module';
-import { BagProcessHttpController, BagProcessRpcHttpController } from './bag-process-http.controller';
-import { BAG_PROCESS_REPOSITORY, BAG_PROCESS_SERVICE } from './bag-process.di-token';
+import {
+  BagProcessHttpController,
+  BagProcessRpcHttpController,
+} from './bag-process-http.controller';
+import {
+  BAG_PROCESS_REPOSITORY,
+  BAG_PROCESS_SERVICE,
+} from './bag-process.di-token';
 import { BagProcessPrismaRepository } from './bag-process-prisma.repo';
 import { BagProcessService } from './bag-process.service';
 

@@ -49,8 +49,6 @@ export const paginationDTOSchema = z.object({
 
 export type PaginationDTO = z.infer<typeof paginationDTOSchema>;
 
-
-
 // Schema cho item trong batch
 export const groupRateItemSchema = z.object({
   groupId: z.string().uuid(),
@@ -66,9 +64,13 @@ export const batchCreateBagGroupRateDTOSchema = z.object({
   groupRates: z.array(groupRateItemSchema).nonempty('Phải có ít nhất một nhóm'),
 });
 
-export type BatchCreateBagGroupRateDTO = z.infer<typeof batchCreateBagGroupRateDTOSchema>;
+export type BatchCreateBagGroupRateDTO = z.infer<
+  typeof batchCreateBagGroupRateDTOSchema
+>;
 
 // Validation utility function
-export const validateBatchCreateDTO = (data: unknown): BatchCreateBagGroupRateDTO => {
+export const validateBatchCreateDTO = (
+  data: unknown,
+): BatchCreateBagGroupRateDTO => {
   return batchCreateBagGroupRateDTOSchema.parse(data);
 };

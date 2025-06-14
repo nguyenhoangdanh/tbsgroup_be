@@ -348,7 +348,7 @@ export class LineService
     }
 
     const managers = await this.lineRepo.getManagers(lineId);
-    
+
     // Enrich with user data if available
     const enrichedManagers = [];
     for (const manager of managers) {
@@ -371,7 +371,7 @@ export class LineService
         enrichedManagers.push(manager);
       }
     }
-    
+
     return enrichedManagers;
   }
 

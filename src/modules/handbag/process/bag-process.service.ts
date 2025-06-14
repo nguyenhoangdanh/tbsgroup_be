@@ -43,17 +43,17 @@ export class BagProcessService implements IBagProcessService {
       }
 
       // Kiểm tra code trùng lặp
-      const existingBagProcessWithCode = await this.bagProcessRepo.findBagProcessByCode(
-        dto.code,
-      );
+      const existingBagProcessWithCode =
+        await this.bagProcessRepo.findBagProcessByCode(dto.code);
       if (existingBagProcessWithCode) {
         throw AppError.from(ErrBagProcessCodeExists, 400);
       }
 
       // Kiểm tra name trùng lặp
-      const existingBagProcessWithName = await this.bagProcessRepo.findBagProcessByCond({
-        name: dto.name,
-      });
+      const existingBagProcessWithName =
+        await this.bagProcessRepo.findBagProcessByCond({
+          name: dto.name,
+        });
       if (existingBagProcessWithName) {
         throw AppError.from(ErrBagProcessNameExists, 400);
       }
@@ -117,9 +117,11 @@ export class BagProcessService implements IBagProcessService {
 
       // Kiểm tra tên trùng lặp (nếu có cập nhật tên)
       if (dto.name && dto.name !== bagProcess.name) {
-        const existingWithName = await this.bagProcessRepo.findBagProcessByCond({
-          name: dto.name,
-        });
+        const existingWithName = await this.bagProcessRepo.findBagProcessByCond(
+          {
+            name: dto.name,
+          },
+        );
         if (existingWithName && existingWithName.id !== id) {
           throw AppError.from(ErrBagProcessNameExists, 400);
         }
@@ -166,7 +168,8 @@ export class BagProcessService implements IBagProcessService {
       }
 
       // Kiểm tra công đoạn có trong sản xuất không
-      const hasProductionRecords = await this.bagProcessRepo.hasProductionRecords(id);
+      const hasProductionRecords =
+        await this.bagProcessRepo.hasProductionRecords(id);
       if (hasProductionRecords) {
         throw AppError.from(ErrBagProcessHasProduction, 400);
       }
@@ -178,7 +181,8 @@ export class BagProcessService implements IBagProcessService {
       }
 
       // Kiểm tra công đoạn có liên kết với màu túi không
-      const hasColorProcessLinks = await this.bagProcessRepo.hasColorProcessLinks(id);
+      const hasColorProcessLinks =
+        await this.bagProcessRepo.hasColorProcessLinks(id);
       if (hasColorProcessLinks) {
         throw AppError.from(
           new Error('Công đoạn đang được sử dụng trong màu túi, không thể xóa'),

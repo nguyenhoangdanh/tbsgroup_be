@@ -3,11 +3,7 @@ import { Logger } from '@nestjs/common';
  * Base repository class that provides common functionality for all Prisma repositories
  * This helps reduce code duplication and standardizes error handling
  */
-export abstract class BasePrismaRepository<
-  T,
-  TWhereInput,
-  TUpdateInput,
-> {
+export abstract class BasePrismaRepository<T, TWhereInput, TUpdateInput> {
   protected abstract readonly logger: Logger;
 
   /**

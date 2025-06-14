@@ -10,7 +10,8 @@ export const uuidSchema = z.string().uuid('ID phải là UUID hợp lệ');
  * Schema Zod cho mảng UUID
  * Sử dụng để validate danh sách ID
  */
-export const uuidArraySchema = z.array(uuidSchema)
+export const uuidArraySchema = z
+  .array(uuidSchema)
   .nonempty('Danh sách ID không được rỗng');
 
 /**

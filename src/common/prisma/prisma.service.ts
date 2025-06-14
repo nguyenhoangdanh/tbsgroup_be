@@ -25,7 +25,6 @@ export class PrismaService
     });
 
     // Sửa lỗi type cho event handler
-    // @ts-ignore - Bỏ qua kiểm tra type cho event handler Prisma
     this.$on('query', (e: any) => {
       if (process.env.DEBUG_PRISMA === 'true') {
         this.logger.debug(`Query: ${e.query}`);

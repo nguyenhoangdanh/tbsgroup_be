@@ -11,7 +11,6 @@ import {
 import {
   IPermissionAdapter,
   IPermissionService,
-  PermissionService,
   PermissionServiceFactory,
 } from './permission.service';
 
@@ -72,7 +71,7 @@ export class RoleBasedPermissionAdapter
   constructor(
     prismaService: PrismaService,
     cacheManager: Cache,
-    configService: ConfigService,
+    // configService: ConfigService,
   ) {
     super('RoleBasedPermissionAdapter', 'role-based', '1.0.0');
 
@@ -112,7 +111,10 @@ export class RoleBasedPermissionAdapter
 
     // Create a permission service implementation that only checks roles
     this.permissionService = {
-      async hasPermission(userId: string, permission: string): Promise<boolean> {
+      async hasPermission(
+        userId: string,
+        permission: string,
+      ): Promise<boolean> {
         // For role-based permission adapter, we map permissions to roles
         // and then check if user has any of those roles
         const requiredRoles = getRolesForPermission(permission);
@@ -255,7 +257,7 @@ export class PermissionAdapterFactory
         const roleBasedAdapter = new RoleBasedPermissionAdapter(
           this.prismaService,
           this.cacheManager,
-          this.configService,
+          // this.configService,
         );
 
         if (config) {

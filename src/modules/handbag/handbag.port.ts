@@ -33,7 +33,10 @@ export interface IHandBagRepository {
 
   // BagColor methods
   getBagColor(id: string): Promise<BagColor | null>;
-  findBagColorByCode(handBagId: string, colorCode: string): Promise<BagColor | null>;
+  findBagColorByCode(
+    handBagId: string,
+    colorCode: string,
+  ): Promise<BagColor | null>;
   listBagColors(
     conditions: BagColorCondDTO,
     pagination: PaginationDTO,
@@ -60,7 +63,10 @@ export interface IHandBagRepository {
     total: number;
   }>;
   insertBagColorProcess(bagColorProcess: BagColorProcess): Promise<void>;
-  updateBagColorProcess(id: string, dto: Partial<BagColorProcess>): Promise<void>;
+  updateBagColorProcess(
+    id: string,
+    dto: Partial<BagColorProcess>,
+  ): Promise<void>;
   deleteBagColorProcess(id: string): Promise<void>;
 }
 

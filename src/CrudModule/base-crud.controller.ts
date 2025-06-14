@@ -176,7 +176,7 @@ export function createCrudController<T, C, U, F = any>(options: {
   service: string | symbol;
   modelName: string;
 }): Type<BaseCrudController<T, C, U, F>> {
-  const { service, modelName } = options;
+  const { service } = options;
 
   @Controller() // Adding empty Controller decorator here
   @UseGuards(RemoteAuthGuard) // Add this line to apply the guard

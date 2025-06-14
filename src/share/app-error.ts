@@ -79,7 +79,10 @@ export class AppError extends Error {
 // Util error function
 export const responseErr = (err: Error, res: Response) => {
   const isProduction = process.env.NODE_ENV === 'production';
-  !isProduction && console.error(err.stack);
+  // !isProduction && console.error(err.stack);
+  if (!isProduction) {
+    console.error(err.stack);
+  };
 
   if (err instanceof AppError) {
     const appErr = err as AppError;

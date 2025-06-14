@@ -619,7 +619,7 @@ export class DigitalFormReportService
 
             // Calculate efficiency relative to line average
             const lineAvgPerWorker =
-              totalEntries > 0 ? totalOutput / totalEntries : 0;
+              totalOutput > 0 ? totalOutput / totalEntries : 0;
 
             const teamAvgPerWorker =
               teamEntries.length > 0 ? teamOutput / teamEntries.length : 0;
@@ -775,6 +775,8 @@ export class DigitalFormReportService
         (sum, entry) => sum + entry.totalOutput,
         0,
       );
+
+      // Calculate average quality
       const totalQualityPoints = entries.reduce(
         (sum, entry) => sum + (entry.qualityScore || 100),
         0,
@@ -886,7 +888,7 @@ export class DigitalFormReportService
               totalOutput: groupOutput,
               averageQuality: groupQuality,
               workerCount: uniqueWorkers.size,
-              efficiency,
+              efficiency: 0,
             };
           }),
         );
@@ -1718,7 +1720,11 @@ export class DigitalFormReportService
         Array.isArray(entry.issues) &&
         entry.issues.length > 0
       ) {
-        allIssues.push(...entry.issues);
+        const validIssues = entry.issues?.filter(issue => issue.type).map(issue => ({
+          ...issue,
+          type: issue.type!,
+        })) || [];
+        allIssues.push(...(validIssues as any[]));
       }
     });
 

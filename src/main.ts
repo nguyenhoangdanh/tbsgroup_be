@@ -64,12 +64,13 @@ async function bootstrap() {
     setupSwagger(app);
 
     // Khởi động server
-    const port = process.env.PORT || 8000;
-    await app.listen(port);
-    console.log(`Application running on: http://localhost:${port}`);
-    console.log(
-      `Swagger documentation available at: http://localhost:${port}/api-docs`,
-    );
+    const port = process.env.PORT || 3000;
+    await app.listen(port, '0.0.0.0');
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`Application running on port: ${port}`);
+      console.log(`Swagger documentation available at: /api-docs`);
+    }
   } catch (error) {
     console.error('Error starting the application:', error);
     process.exit(1);

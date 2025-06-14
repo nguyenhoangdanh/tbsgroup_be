@@ -65,7 +65,10 @@ export class DepartmentHttpController {
       this.logger.debug(`Validated data: ${JSON.stringify(validatedData)}`);
 
       // Pass validated data to service
-      return this.departmentService.create(validatedData);
+      return this.departmentService.create({
+        ...validatedData,
+        code: validatedData.code || '',
+      } as CreateDepartmentDto);
     } catch (error) {
       this.logger.error(
         `Validation error in controller: ${JSON.stringify(error)}`,

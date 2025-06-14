@@ -26,4 +26,20 @@ export class AppController {
       timestamp: new Date().toISOString(),
     };
   }
+
+  @Get('status')
+  @Public()
+  @ApiOperation({ summary: 'API status endpoint' })
+  @ApiResponse({ status: 200, description: 'Returns API status and version' })
+  async status(): Promise<{
+    message: string;
+    version: string;
+    environment: string;
+  }> {
+    return {
+      message: 'TBS Group Daily Performance API is running',
+      version: '1.0.0',
+      environment: process.env.NODE_ENV || 'development',
+    };
+  }
 }

@@ -212,7 +212,10 @@ export class DigitalFormHttpController {
   ) {
     const formId = await this.digitalFormService.createDigitalForm(
       req.requester,
-      dto,
+      {
+        ...dto,
+        userId: dto.userId || '',
+      } as any,
     );
     return {
       success: true,
@@ -611,7 +614,10 @@ export class DigitalFormHttpController {
     const entryId = await this.digitalFormService.addFormEntry(
       req.requester,
       id,
-      dto,
+      {
+        ...dto,
+        userId: dto.userId || '',
+      } as any,
     );
     return {
       success: true,
@@ -771,7 +777,13 @@ export class DigitalFormHttpController {
       req.requester,
       formId,
       entryId,
-      dto,
+      {
+        ...dto,
+        issues: dto.issues?.map(issue => ({
+          ...issue,
+          type: issue.type || 'QUALITY',
+        })) || [],
+      } as any,
     );
     return { success: true };
   }

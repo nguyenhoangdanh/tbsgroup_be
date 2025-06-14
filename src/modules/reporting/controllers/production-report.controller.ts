@@ -17,6 +17,7 @@ import {
 } from '@nestjs/swagger';
 import { RemoteAuthGuard } from 'src/share/guard';
 import { ProductionReportService } from '../services/production-report.service';
+import { getErrorMessage, logError } from 'src/share/utils/error.helper';
 
 @Controller('api/reports/production')
 @ApiTags('Production-Reports')
@@ -73,13 +74,10 @@ export class ProductionReportController {
         data: stats,
       };
     } catch (error) {
-      this.logger.error(
-        `Error getting factory stats: ${error.message}`,
-        error.stack,
-      );
+      logError(this.logger, 'Error getting factory stats', error);
       return {
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
       };
     }
   }
@@ -129,13 +127,10 @@ export class ProductionReportController {
         data: stats,
       };
     } catch (error) {
-      this.logger.error(
-        `Error getting line stats: ${error.message}`,
-        error.stack,
-      );
+      logError(this.logger, 'Error getting line stats', error);
       return {
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
       };
     }
   }
@@ -185,13 +180,10 @@ export class ProductionReportController {
         data: stats,
       };
     } catch (error) {
-      this.logger.error(
-        `Error getting team stats: ${error.message}`,
-        error.stack,
-      );
+      logError(this.logger, 'Error getting team stats', error);
       return {
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
       };
     }
   }
@@ -241,13 +233,10 @@ export class ProductionReportController {
         data: stats,
       };
     } catch (error) {
-      this.logger.error(
-        `Error getting group stats: ${error.message}`,
-        error.stack,
-      );
+      logError(this.logger, 'Error getting group stats', error);
       return {
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
       };
     }
   }
@@ -316,13 +305,10 @@ export class ProductionReportController {
         data: stats,
       };
     } catch (error) {
-      this.logger.error(
-        `Error getting dashboard stats: ${error.message}`,
-        error.stack,
-      );
+      logError(this.logger, 'Error getting dashboard stats', error);
       return {
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
       };
     }
   }
@@ -392,13 +378,10 @@ export class ProductionReportController {
         data: stats,
       };
     } catch (error) {
-      this.logger.error(
-        `Error comparing ${entityType} stats: ${error.message}`,
-        error.stack,
-      );
+      logError(this.logger, `Error comparing ${entityType} stats`, error);
       return {
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
       };
     }
   }
@@ -521,13 +504,10 @@ export class ProductionReportController {
         data: { fileUrl },
       };
     } catch (error) {
-      this.logger.error(
-        `Error exporting ${reportType} report: ${error.message}`,
-        error.stack,
-      );
+      logError(this.logger, `Error exporting ${reportType} report`, error);
       return {
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
       };
     }
   }

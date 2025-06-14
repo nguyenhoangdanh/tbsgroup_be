@@ -99,7 +99,12 @@ export class FactoryService
         conditions: any,
         paging: PagingDTO,
       ): Promise<Paginated<Factory>> => {
-        const result = await factoryRepository.list(conditions, paging);
+        const result = await factoryRepository.list(conditions, {
+          page: paging.page || 1,
+          limit: paging.limit || 10,
+          sortBy: paging.sort,
+          sortOrder: paging.order,
+        });
         return {
           data: result.data,
           total: result.total,

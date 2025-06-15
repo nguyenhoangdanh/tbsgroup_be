@@ -31,6 +31,7 @@ import { AuthModule } from './modules/auth/auth.module';
 // Import module Phòng ban và Người dùng-Phòng ban
 import { DepartmentModule } from './modules/department/department.module';
 import { UserDepartmentModule } from './modules/user-department/user-department.module';
+import { EnvironmentConfig } from './config/environment.config';
 
 @Module({
   imports: [
@@ -101,6 +102,7 @@ import { UserDepartmentModule } from './modules/user-department/user-department.
       provide: APP_INTERCEPTOR,
       useClass: SwaggerModelInterceptor,
     },
+    EnvironmentConfig,
   ],
 })
 export class AppModule implements NestModule {

@@ -8,6 +8,7 @@ import { AuthExceptionFilter } from './common/exceptions/auth-filter.exception';
 import { SwaggerTokenInterceptor } from './common/interceptors/swagger-token.interceptor';
 import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { EnvironmentConfig } from './config/environment.config';
 
 async function bootstrap() {
   try {
@@ -16,24 +17,12 @@ async function bootstrap() {
     // Đăng ký cookie parser middleware
     app.use(cookieParser());
 
-    // Cấu hình CORS
-    app.enableCors({
-      origin: [
-        'http://localhost:3000',
-        'https://thoaison-handbag-factory.vercel.app',
-      ],
-      credentials: true,
-      allowedHeaders: [
-        'Content-Type',
-        'Authorization',
-        'X-CSRF-Token',
-        'X-Requested-With',
-        'Accept',
-        'x-from-swagger',
-      ],
-      exposedHeaders: ['Authorization'],
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
-    });
+    // Get environment configuration for CORS setup
+    const envConfig = app.get(EnvironmentConfig);
+    const corsConfig = envConfig.getCorsConfig();
+
+    // Enable CORS with environment-specific configuration
+    app.enableCors(corsConfig);
 
     // Đảm bảo ứng dụng trust proxy
     app.set('trust proxy', 1);
@@ -64,13 +53,13 @@ async function bootstrap() {
     setupSwagger(app);
 
     // Khởi động server
-    const port = process.env.PORT || 3000;
+    const port = envConfig.port;
     await app.listen(port, '0.0.0.0');
 
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`Application running on port: ${port}`);
-      console.log(`Swagger documentation available at: /api-docs`);
-    }
+    console.log(`Application is running on: http://localhost:${port}`);
+    console.log(`Environment: ${envConfig.nodeEnv}`);
+    console.log(`Frontend URL: ${envConfig.frontendUrl}`);
+    console.log(`Cookie Domain: ${envConfig.cookieDomain || 'not set'}`);
   } catch (error) {
     console.error('Error starting the application:', error);
     process.exit(1);

@@ -12,6 +12,7 @@ import { UserModule } from '../user/user.module';
 import { ROLE_REPOSITORY, ROLE_SERVICE } from '../role/role.di-token';
 import { RoleService } from '../role/role.service';
 import { RolePrismaRepository } from '../role/role-prisma.repo';
+import { EnvironmentConfig } from 'src/config/environment.config';
 
 const services: Provider[] = [
   { provide: AUTH_SERVICE, useClass: AuthService },
@@ -19,6 +20,7 @@ const services: Provider[] = [
   // Provide TOKEN_INTROSPECTOR using the same instance as TOKEN_SERVICE
   { provide: TOKEN_INTROSPECTOR, useExisting: TOKEN_SERVICE },
   { provide: ROLE_SERVICE, useClass: RoleService },
+  EnvironmentConfig,
 ];
 
 const repositories: Provider[] = [
@@ -37,6 +39,6 @@ const repositories: Provider[] = [
   ],
   controllers: [AuthController, AuthRpcController],
   providers: [...services, ...repositories],
-  exports: [AUTH_SERVICE, TOKEN_SERVICE, TOKEN_INTROSPECTOR],
+  exports: [AUTH_SERVICE, TOKEN_SERVICE, TOKEN_INTROSPECTOR, EnvironmentConfig],
 })
 export class AuthModule {}

@@ -4,6 +4,9 @@
   "sourceRoot": "src",
   "compilerOptions": {
     "deleteOutDir": true,
-    "webpack": false
+    "assets": [
+      "**/*.prisma"
+    ],
+    "watchAssets": true
   }
 }

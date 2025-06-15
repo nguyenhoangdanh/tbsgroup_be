@@ -43,6 +43,7 @@ import { createDtoFromZodSchema } from 'src/utils/zod-to-swagger.util';
 import { ZodValidationPipe } from 'src/share/pipes/zod-validation.pipe';
 import { z } from 'zod';
 import { Public } from 'src/common/decorators/public.decorator';
+import { EnvironmentConfig } from 'src/config/environment.config';
 
 // Create DTO classes from Zod schemas for Swagger
 const RegistrationDTOClass = createDtoFromZodSchema(
@@ -143,6 +144,7 @@ export class AuthController {
   constructor(
     @Inject(AUTH_SERVICE) private readonly authService: IAuthService,
     @Inject(TOKEN_SERVICE) private readonly tokenService: ITokenService,
+    private readonly envConfig: EnvironmentConfig,
   ) {}
 
   @Post('register')
@@ -215,40 +217,51 @@ export class AuthController {
     @Res({ passthrough: true }) res: ExpressResponse,
     @Body(new ZodValidationPipe(loginDTOSchema)) dto: LoginDTO,
   ) {
-    const { token, expiresIn, requiredResetPassword, data } =
-      await this.authService.login(dto);
+    try {
+      const { token, expiresIn, requiredResetPassword, data } =
+        await this.authService.login(dto);
 
-    // Enhanced cookie configuration for production
-    const isProduction = process.env.NODE_ENV === 'production';
-    const cookieOptions = {
-      httpOnly: true,
-      secure: isProduction, // Only HTTPS in production
-      sameSite: (isProduction ? 'none' : 'lax') as 'none' | 'lax' | 'strict', // Explicit type casting
-      maxAge: expiresIn * 1000,
-      path: '/',
-      domain: isProduction ? process.env.COOKIE_DOMAIN : undefined, // Set domain if needed
-    };
+      // Get cookie configuration based on environment
+      const cookieOptions = this.envConfig.getCookieConfig(expiresIn * 1000);
 
-    // Log cookie configuration for debugging
-    this.logger.debug(`Setting cookie with options:`, cookieOptions);
+      // Log cookie configuration for debugging
+      this.logger.debug(`Setting cookie with options:`, {
+        ...cookieOptions,
+        environment: this.envConfig.nodeEnv,
+        frontendUrl: this.envConfig.frontendUrl,
+      });
 
-    res.cookie('accessToken', token, cookieOptions);
+      // Set cookie
+      res.cookie('accessToken', token, cookieOptions);
 
-    // Also set additional headers for CORS
-    if (isProduction) {
-      res.header('Access-Control-Allow-Credentials', 'true');
-      res.header('Access-Control-Allow-Origin', process.env.FRONTEND_URL);
+      // Set CORS headers for production
+      if (this.envConfig.isProductionEnv) {
+        const corsConfig = this.envConfig.getCorsConfig();
+        res.header('Access-Control-Allow-Credentials', 'true');
+        res.header('Access-Control-Allow-Origin', corsConfig.origin as string);
+        res.header(
+          'Access-Control-Allow-Headers',
+          corsConfig.allowedHeaders.join(', '),
+        );
+        res.header(
+          'Access-Control-Allow-Methods',
+          corsConfig.methods.join(', '),
+        );
+      }
+
+      return {
+        success: true,
+        data: {
+          ...data,
+          token,
+          expiresIn,
+          requiredResetPassword,
+        },
+      };
+    } catch (error) {
+      this.logger.error(`Login error: ${error.message}`, error.stack);
+      throw error;
     }
-
-    return {
-      success: true,
-      data: {
-        ...data,
-        token,
-        expiresIn,
-        requiredResetPassword,
-      },
-    };
   }
 
   @Post('logout')
@@ -275,38 +288,40 @@ export class AuthController {
     @Request() req: ReqWithRequester,
     @Res({ passthrough: true }) res: ExpressResponse,
   ) {
-    // Extract all possible tokens
-    const cookieToken = req.cookies?.accessToken;
-    const headerToken = req.headers.authorization?.split(' ')[1];
+    try {
+      // Extract all possible tokens
+      const cookieToken = req.cookies?.accessToken;
+      const headerToken = req.headers.authorization?.split(' ')[1];
 
-    this.logger.debug(
-      `Logout - Cookie token exists: ${!!cookieToken}, Auth header exists: ${!!headerToken}`,
-    );
+      this.logger.debug(
+        `Logout - Cookie token exists: ${!!cookieToken}, Auth header exists: ${!!headerToken}`,
+      );
 
-    // Log out and invalidate all available tokens
-    if (cookieToken) {
-      await this.authService.logout(cookieToken);
+      // Log out and invalidate all available tokens
+      if (cookieToken) {
+        await this.authService.logout(cookieToken);
+      }
+
+      if (headerToken && headerToken !== cookieToken) {
+        await this.authService.logout(headerToken);
+      }
+
+      // Enhanced cookie clearing using environment config
+      const clearCookieOptions = this.envConfig.getCookieConfig(0);
+      res.clearCookie('accessToken', clearCookieOptions);
+
+      // Set CORS headers
+      if (this.envConfig.isProductionEnv) {
+        const corsConfig = this.envConfig.getCorsConfig();
+        res.header('Access-Control-Allow-Credentials', 'true');
+        res.header('Access-Control-Allow-Origin', corsConfig.origin as string);
+      }
+
+      return { success: true, message: 'Đăng xuất thành công' };
+    } catch (error) {
+      this.logger.error(`Logout error: ${error.message}`, error.stack);
+      throw error;
     }
-
-    if (headerToken && headerToken !== cookieToken) {
-      await this.authService.logout(headerToken);
-    }
-
-    // Enhanced cookie clearing for production
-    const isProduction = process.env.NODE_ENV === 'production';
-    res.clearCookie('accessToken', {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: (isProduction ? 'none' : 'lax') as 'none' | 'lax' | 'strict', // Explicit type casting
-      path: '/',
-      domain: isProduction ? process.env.COOKIE_DOMAIN : undefined,
-    });
-
-    // For better security, tell browsers to clear Authorization header
-    // Note: This doesn't affect existing stored tokens in clients
-    res.setHeader('Clear-Site-Data', '"cookies", "storage"');
-
-    return { success: true, message: 'Đăng xuất thành công' };
   }
 
   @Post('refresh')
@@ -343,36 +358,39 @@ export class AuthController {
     @Res({ passthrough: true }) res: ExpressResponse,
     @Request() req: ExpressRequest,
   ) {
-    const token =
-      req.cookies?.accessToken || req.headers.authorization?.split(' ')[1];
+    try {
+      const token =
+        req.cookies?.accessToken || req.headers.authorization?.split(' ')[1];
 
-    if (!token) {
-      throw AppError.from(ErrInvalidToken, 401);
+      if (!token) {
+        throw AppError.from(ErrInvalidToken, 401);
+      }
+
+      const { token: newToken, expiresIn } =
+        await this.authService.refreshToken(token);
+
+      // Use environment-based cookie configuration
+      const cookieOptions = this.envConfig.getCookieConfig(expiresIn * 1000);
+      res.cookie('accessToken', newToken, cookieOptions);
+
+      // Set CORS headers
+      if (this.envConfig.isProductionEnv) {
+        const corsConfig = this.envConfig.getCorsConfig();
+        res.header('Access-Control-Allow-Credentials', 'true');
+        res.header('Access-Control-Allow-Origin', corsConfig.origin as string);
+      }
+
+      return {
+        success: true,
+        data: {
+          token: newToken,
+          expiresIn,
+        },
+      };
+    } catch (error) {
+      this.logger.error(`Refresh token error: ${error.message}`, error.stack);
+      throw error;
     }
-
-    const { token: newToken, expiresIn } =
-      await this.authService.refreshToken(token);
-
-    // Use same enhanced cookie configuration
-    const isProduction = process.env.NODE_ENV === 'production';
-    const cookieOptions = {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: (isProduction ? 'none' : 'lax') as 'none' | 'lax' | 'strict', // Explicit type casting
-      maxAge: expiresIn * 1000,
-      path: '/',
-      domain: isProduction ? process.env.COOKIE_DOMAIN : undefined,
-    };
-
-    res.cookie('accessToken', newToken, cookieOptions);
-
-    return {
-      success: true,
-      data: {
-        token: newToken,
-        expiresIn,
-      },
-    };
   }
 
   @Post('request-password-reset')
